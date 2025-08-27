@@ -16,10 +16,9 @@ const Index = () => {
       id: '1',
       title: 'Mathematics Assignment - Calculus',
       subject: 'Mathematics',
-      deadline: '2024-01-15T23:59:59',
+      deadline: '2025-01-02T23:59:59', // Close deadline
       description: 'Complete problems 1-20 from Chapter 5. Focus on integration by parts and substitution methods.',
       created_by: 'user1',
-      priority: 'high' as const,
       completions: 12,
       totalStudents: 25,
       isCompleted: false
@@ -28,10 +27,9 @@ const Index = () => {
       id: '2',
       title: 'Physics Lab Report',
       subject: 'Physics',
-      deadline: '2024-01-12T17:00:00',
+      deadline: '2025-01-05T17:00:00', // Medium deadline
       description: 'Submit lab report on pendulum motion experiment with graphs and analysis.',
       created_by: 'user2',
-      priority: 'medium' as const,
       completions: 8,
       totalStudents: 25,
       isCompleted: true
@@ -40,19 +38,35 @@ const Index = () => {
       id: '3',
       title: 'English Essay - Shakespeare',
       subject: 'English',
-      deadline: '2024-01-20T23:59:59',
+      deadline: '2025-01-15T23:59:59', // Far deadline
       description: 'Write a 1500-word essay analyzing themes in Hamlet.',
       created_by: 'user3',
-      priority: 'low' as const,
       completions: 3,
       totalStudents: 25,
       isCompleted: false
     }
   ];
 
+  // Calculate priority based on deadline proximity
+  const getAutomaticPriority = (deadline: string): 'high' | 'medium' | 'low' => {
+    const now = new Date();
+    const deadlineDate = new Date(deadline);
+    const daysUntilDeadline = Math.ceil((deadlineDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    
+    if (daysUntilDeadline <= 3) return 'high';    // Red - 3 days or less
+    if (daysUntilDeadline <= 7) return 'medium';  // Yellow - 4-7 days
+    return 'low';                                  // Green - More than 7 days
+  };
+
+  // Add automatic priority to reminders
+  const remindersWithPriority = mockReminders.map(reminder => ({
+    ...reminder,
+    priority: getAutomaticPriority(reminder.deadline)
+  }));
+
   const subjects = ['All', 'Mathematics', 'Physics', 'English', 'Chemistry', 'Biology'];
 
-  const filteredReminders = mockReminders.filter(reminder => {
+  const filteredReminders = remindersWithPriority.filter(reminder => {
     const matchesSearch = reminder.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          reminder.subject.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesSubject = selectedSubject === 'All' || reminder.subject === selectedSubject;
