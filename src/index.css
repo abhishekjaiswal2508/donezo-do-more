@@ -33,6 +33,14 @@ All colors MUST be HSL.
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
+    /* Priority Colors - Traffic Light System */
+    --priority-high: 0 84% 60%; /* Red */
+    --priority-high-foreground: 0 0% 100%;
+    --priority-medium: 45 93% 58%; /* Yellow/Orange */
+    --priority-medium-foreground: 0 0% 0%;
+    --priority-low: 142 71% 45%; /* Green */
+    --priority-low-foreground: 0 0% 100%;
+
     --border: 220 18% 87%;
     --input: 220 18% 87%;
     --ring: 210 100% 56%;
@@ -80,6 +88,14 @@ All colors MUST be HSL.
 
     --destructive: 0 62% 51%;
     --destructive-foreground: 0 0% 100%;
+
+    /* Priority Colors - Traffic Light System (Dark Mode) */
+    --priority-high: 0 84% 60%; /* Red */
+    --priority-high-foreground: 0 0% 100%;
+    --priority-medium: 45 93% 58%; /* Yellow/Orange */
+    --priority-medium-foreground: 0 0% 0%;
+    --priority-low: 142 71% 45%; /* Green */
+    --priority-low-foreground: 0 0% 100%;
 
     --border: 215 25% 25%;
     --input: 215 25% 25%;

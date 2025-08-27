@@ -12,6 +12,7 @@ interface ReminderCardProps {
     deadline: string;
     description: string;
     created_by: string;
+    priority: 'high' | 'medium' | 'low';
     completions?: number;
     totalStudents?: number;
     isCompleted?: boolean;
@@ -24,6 +25,15 @@ const ReminderCard = ({ reminder, onComplete, onUpload }: ReminderCardProps) => 
   const deadline = new Date(reminder.deadline);
   const isOverdue = deadline < new Date();
   const timeLeft = formatDistanceToNow(deadline, { addSuffix: true });
+  
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'high': return 'bg-priority-high text-priority-high-foreground';
+      case 'medium': return 'bg-priority-medium text-priority-medium-foreground';
+      case 'low': return 'bg-priority-low text-priority-low-foreground';
+      default: return 'bg-secondary text-secondary-foreground';
+    }
+  };
 
   return (
     <Card className="p-6 shadow-donezo hover:shadow-donezo-lg transition-all duration-300">
@@ -31,9 +41,14 @@ const ReminderCard = ({ reminder, onComplete, onUpload }: ReminderCardProps) => 
         <div className="flex items-start justify-between">
           <div className="space-y-2">
             <h3 className="text-lg font-semibold text-card-foreground">{reminder.title}</h3>
-            <Badge variant="secondary" className="text-xs">
-              {reminder.subject}
-            </Badge>
+            <div className="flex gap-2">
+              <Badge variant="secondary" className="text-xs">
+                {reminder.subject}
+              </Badge>
+              <Badge className={`text-xs capitalize ${getPriorityColor(reminder.priority)}`}>
+                {reminder.priority} Priority
+              </Badge>
+            </div>
           </div>
           {reminder.isCompleted && (
             <CheckCircle className="h-6 w-6 text-secondary" />

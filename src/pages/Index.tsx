@@ -19,6 +19,7 @@ const Index = () => {
       deadline: '2024-01-15T23:59:59',
       description: 'Complete problems 1-20 from Chapter 5. Focus on integration by parts and substitution methods.',
       created_by: 'user1',
+      priority: 'high' as const,
       completions: 12,
       totalStudents: 25,
       isCompleted: false
@@ -30,6 +31,7 @@ const Index = () => {
       deadline: '2024-01-12T17:00:00',
       description: 'Submit lab report on pendulum motion experiment with graphs and analysis.',
       created_by: 'user2',
+      priority: 'medium' as const,
       completions: 8,
       totalStudents: 25,
       isCompleted: true
@@ -41,6 +43,7 @@ const Index = () => {
       deadline: '2024-01-20T23:59:59',
       description: 'Write a 1500-word essay analyzing themes in Hamlet.',
       created_by: 'user3',
+      priority: 'low' as const,
       completions: 3,
       totalStudents: 25,
       isCompleted: false
