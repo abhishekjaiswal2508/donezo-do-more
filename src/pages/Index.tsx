@@ -6,17 +6,21 @@ import { Badge } from '@/components/ui/badge';
 import ReminderCard from '@/components/ReminderCard';
 import { Search, Filter, Plus, LogIn } from 'lucide-react';
 import { useReminders, useCompleteReminder, useUploadAssignment } from '@/hooks/useReminders';
+import { useStats } from '@/hooks/useStats';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
+import { useNavigate } from 'react-router-dom';
 
 const Index = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSubject, setSelectedSubject] = useState('All');
   const { user, loading } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
   
-  // Fetch reminders from Supabase
+  // Fetch reminders and stats from Supabase
   const { data: reminders = [], isLoading: remindersLoading } = useReminders();
+  const { data: stats, isLoading: statsLoading } = useStats();
   const completeReminderMutation = useCompleteReminder();
   const uploadAssignmentMutation = useUploadAssignment();
 
@@ -86,7 +90,7 @@ const Index = () => {
   };
 
   // Show loading state
-  if (loading || remindersLoading) {
+  if (loading || remindersLoading || statsLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-muted-foreground">Loading assignments...</div>
@@ -118,7 +122,7 @@ const Index = () => {
           <h1 className="text-3xl font-bold text-foreground">Assignment Board</h1>
           <p className="text-muted-foreground">Stay on top of your assignments</p>
         </div>
-        <Button className="lg:w-auto">
+        <Button className="lg:w-auto" onClick={() => navigate('/create')}>
           <Plus className="h-4 w-4 mr-2" />
           Create Reminder
         </Button>
@@ -154,19 +158,19 @@ const Index = () => {
       {/* Stats */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <Card className="p-4">
-          <div className="text-2xl font-bold text-primary">24</div>
+          <div className="text-2xl font-bold text-primary">{stats?.totalReminders || 0}</div>
           <div className="text-sm text-muted-foreground">Total Reminders</div>
         </Card>
         <Card className="p-4">
-          <div className="text-2xl font-bold text-secondary">18</div>
+          <div className="text-2xl font-bold text-secondary">{stats?.completedReminders || 0}</div>
           <div className="text-sm text-muted-foreground">Completed</div>
         </Card>
         <Card className="p-4">
-          <div className="text-2xl font-bold text-accent">6</div>
+          <div className="text-2xl font-bold text-accent">{stats?.pendingReminders || 0}</div>
           <div className="text-sm text-muted-foreground">Pending</div>
         </Card>
         <Card className="p-4">
-          <div className="text-2xl font-bold text-destructive">2</div>
+          <div className="text-2xl font-bold text-destructive">{stats?.overdueReminders || 0}</div>
           <div className="text-sm text-muted-foreground">Overdue</div>
         </Card>
       </div>

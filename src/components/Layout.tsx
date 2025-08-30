@@ -28,8 +28,8 @@ const Layout = () => {
   };
 
   const navigation = [
-    { name: 'Home', href: '/', icon: Home },
-    { name: 'Create', href: '/create', icon: Plus },
+    { name: 'Home', href: '/', icon: Home, onClick: () => window.location.href = '/' },
+    { name: 'Create', href: '/create', icon: Plus, onClick: () => window.location.href = '/create' },
     { name: 'Leaderboard', href: '/leaderboard', icon: Trophy },
     { name: 'Profile', href: '/profile', icon: User },
   ];
@@ -63,7 +63,10 @@ const Layout = () => {
                     key={item.name}
                     variant="ghost"
                     className="justify-start"
-                    onClick={() => setIsMobileMenuOpen(false)}
+                    onClick={() => {
+                      setIsMobileMenuOpen(false);
+                      if (item.onClick) item.onClick();
+                    }}
                   >
                     <item.icon className="mr-3 h-5 w-5" />
                     {item.name}
@@ -91,6 +94,7 @@ const Layout = () => {
                       key={item.name}
                       variant="ghost"
                       className="w-full justify-start"
+                      onClick={item.onClick}
                     >
                       <item.icon className="mr-3 h-5 w-5" />
                       {item.name}
@@ -145,6 +149,7 @@ const Layout = () => {
               key={item.name}
               variant="ghost"
               className="flex-1 flex-col h-16 rounded-none"
+              onClick={item.onClick}
             >
               <item.icon className="h-5 w-5" />
               <span className="text-xs mt-1">{item.name}</span>
