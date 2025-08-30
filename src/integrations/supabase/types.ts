@@ -14,7 +14,119 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      reminder_completions: {
+        Row: {
+          completed_at: string
+          file_url: string | null
+          id: string
+          points_awarded: number
+          reminder_id: string
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string
+          file_url?: string | null
+          id?: string
+          points_awarded?: number
+          reminder_id: string
+          user_id: string
+        }
+        Update: {
+          completed_at?: string
+          file_url?: string | null
+          id?: string
+          points_awarded?: number
+          reminder_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reminder_completions_reminder_id_fkey"
+            columns: ["reminder_id"]
+            isOneToOne: false
+            referencedRelation: "reminders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reminder_completions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["auth_user_id"]
+          },
+        ]
+      }
+      reminders: {
+        Row: {
+          created_at: string
+          created_by: string
+          deadline: string
+          description: string | null
+          id: string
+          subject: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          deadline: string
+          description?: string | null
+          id?: string
+          subject: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          deadline?: string
+          description?: string | null
+          id?: string
+          subject?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reminders_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["auth_user_id"]
+          },
+        ]
+      }
+      users: {
+        Row: {
+          auth_user_id: string
+          created_at: string
+          email: string
+          id: string
+          points: number
+          updated_at: string
+          username: string
+        }
+        Insert: {
+          auth_user_id: string
+          created_at?: string
+          email: string
+          id?: string
+          points?: number
+          updated_at?: string
+          username: string
+        }
+        Update: {
+          auth_user_id?: string
+          created_at?: string
+          email?: string
+          id?: string
+          points?: number
+          updated_at?: string
+          username?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
