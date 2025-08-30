@@ -2,10 +2,30 @@ import { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Bell, Home, Plus, Trophy, User, Menu, X } from 'lucide-react';
+import { Bell, Home, Plus, Trophy, User, Menu, X, LogOut } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
+import { useToast } from '@/hooks/use-toast';
 
 const Layout = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const { user, signOut } = useAuth();
+  const { toast } = useToast();
+
+  const handleSignOut = async () => {
+    const { error } = await signOut();
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Failed to sign out",
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Signed out",
+        description: "You have been signed out successfully",
+      });
+    }
+  };
 
   const navigation = [
     { name: 'Home', href: '/', icon: Home },
@@ -80,10 +100,30 @@ const Layout = () => {
               </nav>
               
               <div className="p-6 border-t">
-                <Button variant="ghost" className="w-full justify-start">
-                  <Bell className="mr-3 h-5 w-5" />
-                  Notifications
-                </Button>
+                {user ? (
+                  <div className="space-y-2">
+                    <div className="text-sm text-muted-foreground px-3 py-2">
+                      Logged in as: {user.email}
+                    </div>
+                    <Button 
+                      variant="ghost" 
+                      className="w-full justify-start"
+                      onClick={handleSignOut}
+                    >
+                      <LogOut className="mr-3 h-5 w-5" />
+                      Sign Out
+                    </Button>
+                  </div>
+                ) : (
+                  <Button 
+                    variant="ghost" 
+                    className="w-full justify-start"
+                    onClick={() => window.location.href = '/auth'}
+                  >
+                    <User className="mr-3 h-5 w-5" />
+                    Sign In
+                  </Button>
+                )}
               </div>
             </div>
           </div>

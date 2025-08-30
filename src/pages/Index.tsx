@@ -4,48 +4,21 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import ReminderCard from '@/components/ReminderCard';
-import { Search, Filter, Plus } from 'lucide-react';
+import { Search, Filter, Plus, LogIn } from 'lucide-react';
+import { useReminders, useCompleteReminder, useUploadAssignment } from '@/hooks/useReminders';
+import { useAuth } from '@/hooks/useAuth';
+import { useToast } from '@/hooks/use-toast';
 
 const Index = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSubject, setSelectedSubject] = useState('All');
-
-  // Mock data - replace with Supabase data
-  const mockReminders = [
-    {
-      id: '1',
-      title: 'Mathematics Assignment - Calculus',
-      subject: 'Mathematics',
-      deadline: '2025-01-02T23:59:59', // Close deadline
-      description: 'Complete problems 1-20 from Chapter 5. Focus on integration by parts and substitution methods.',
-      created_by: 'user1',
-      completions: 12,
-      totalStudents: 25,
-      isCompleted: false
-    },
-    {
-      id: '2',
-      title: 'Physics Lab Report',
-      subject: 'Physics',
-      deadline: '2025-01-05T17:00:00', // Medium deadline
-      description: 'Submit lab report on pendulum motion experiment with graphs and analysis.',
-      created_by: 'user2',
-      completions: 8,
-      totalStudents: 25,
-      isCompleted: true
-    },
-    {
-      id: '3',
-      title: 'English Essay - Shakespeare',
-      subject: 'English',
-      deadline: '2025-01-15T23:59:59', // Far deadline
-      description: 'Write a 1500-word essay analyzing themes in Hamlet.',
-      created_by: 'user3',
-      completions: 3,
-      totalStudents: 25,
-      isCompleted: false
-    }
-  ];
+  const { user, loading } = useAuth();
+  const { toast } = useToast();
+  
+  // Fetch reminders from Supabase
+  const { data: reminders = [], isLoading: remindersLoading } = useReminders();
+  const completeReminderMutation = useCompleteReminder();
+  const uploadAssignmentMutation = useUploadAssignment();
 
   // Calculate priority based on deadline proximity
   const getAutomaticPriority = (deadline: string): 'high' | 'medium' | 'low' => {
@@ -59,7 +32,7 @@ const Index = () => {
   };
 
   // Add automatic priority to reminders
-  const remindersWithPriority = mockReminders.map(reminder => ({
+  const remindersWithPriority = reminders.map(reminder => ({
     ...reminder,
     priority: getAutomaticPriority(reminder.deadline)
   }));
@@ -78,12 +51,64 @@ const Index = () => {
   );
 
   const handleComplete = (id: string) => {
-    console.log('Mark as completed:', id);
+    if (!user) {
+      toast({
+        title: "Authentication required",
+        description: "Please log in to complete assignments",
+        variant: "destructive",
+      });
+      return;
+    }
+    completeReminderMutation.mutate(id);
   };
 
   const handleUpload = (id: string) => {
-    console.log('Upload assignment for:', id);
+    if (!user) {
+      toast({
+        title: "Authentication required", 
+        description: "Please log in to upload assignments",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Create file input to let user select file
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.pdf,.doc,.docx,.txt';
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (file) {
+        uploadAssignmentMutation.mutate({ reminderId: id, file });
+      }
+    };
+    input.click();
   };
+
+  // Show loading state
+  if (loading || remindersLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-muted-foreground">Loading assignments...</div>
+      </div>
+    );
+  }
+
+  // Show login prompt if not authenticated
+  if (!user) {
+    return (
+      <div className="space-y-6">
+        <div className="text-center">
+          <h1 className="text-3xl font-bold text-foreground mb-4">Assignment Board</h1>
+          <p className="text-muted-foreground mb-6">Please log in to view and manage your assignments</p>
+          <Button onClick={() => window.location.href = '/auth'}>
+            <LogIn className="h-4 w-4 mr-2" />
+            Log In
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 pb-20 lg:pb-0">
