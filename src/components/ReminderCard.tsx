@@ -1,11 +1,13 @@
+import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Calendar, Clock, User, Upload, CheckCircle, Download, Trash2 } from 'lucide-react';
+import { Calendar, Clock, User, Upload, CheckCircle, Download, Trash2, Eye } from 'lucide-react';
 import { format, isAfter } from 'date-fns';
 import { useCompleteReminder, useUploadAssignment, useDeleteReminder, useDownloadFile } from '@/hooks/useReminders';
 import { useAuth } from '@/hooks/useAuth';
 import { useRef } from 'react';
+import ReminderEditModal from './ReminderEditModal';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -35,6 +37,7 @@ interface ReminderCardProps {
 }
 
 const ReminderCard = ({ reminder }: ReminderCardProps) => {
+  const [showEditModal, setShowEditModal] = useState(false);
   const { user } = useAuth();
   const completeReminderMutation = useCompleteReminder();
   const uploadAssignmentMutation = useUploadAssignment();
@@ -106,6 +109,13 @@ const ReminderCard = ({ reminder }: ReminderCardProps) => {
               )}
             </div>
           </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowEditModal(true)}
+          >
+            <Eye className="h-4 w-4" />
+          </Button>
         </div>
         {reminder.description && (
           <CardDescription>{reminder.description}</CardDescription>
@@ -200,6 +210,16 @@ const ReminderCard = ({ reminder }: ReminderCardProps) => {
           onChange={handleFileUpload}
         />
       </CardContent>
+
+      <ReminderEditModal
+        reminder={reminder}
+        isOpen={showEditModal}
+        onClose={() => setShowEditModal(false)}
+        onUpdate={() => {
+          // Trigger a refetch - this could be improved with proper state management
+          window.location.reload();
+        }}
+      />
     </Card>
   );
 };

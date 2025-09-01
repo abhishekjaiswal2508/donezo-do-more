@@ -1,13 +1,30 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/hooks/useAuth';
-import { BookOpen, LogOut, Plus, User } from 'lucide-react';
+import { useReminders } from '@/hooks/useReminders';
+import { BookOpen, LogOut, Plus, User, Trophy, Bell } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useMemo } from 'react';
 
 const Layout = () => {
   const { user, signOut, loading } = useAuth();
+  const { data: reminders } = useReminders();
   const { toast } = useToast();
   const location = useLocation();
+
+  // Calculate notification count
+  const notificationCount = useMemo(() => {
+    if (!reminders || !user) return 0;
+    
+    const now = new Date();
+    return reminders.filter(reminder => {
+      const deadline = new Date(reminder.deadline);
+      const isOverdue = deadline < now && !reminder.isCompleted;
+      const isDueToday = deadline.toDateString() === now.toDateString() && !reminder.isCompleted;
+      return isOverdue || isDueToday;
+    }).length;
+  }, [reminders, user]);
 
   const handleLogout = async () => {
     const { error } = await signOut();
@@ -42,6 +59,26 @@ const Layout = () => {
                 <span className="text-sm text-muted-foreground">
                   Welcome back!
                 </span>
+                <Button variant="outline" size="sm" asChild>
+                  <Link to="/notifications" className="relative">
+                    <Bell className="h-4 w-4 mr-2" />
+                    Notifications
+                    {notificationCount > 0 && (
+                      <Badge 
+                        variant="destructive" 
+                        className="absolute -top-2 -right-2 h-5 w-5 p-0 flex items-center justify-center text-xs"
+                      >
+                        {notificationCount}
+                      </Badge>
+                    )}
+                  </Link>
+                </Button>
+                <Button variant="outline" size="sm" asChild>
+                  <Link to="/leaderboard">
+                    <Trophy className="h-4 w-4 mr-2" />
+                    Leaderboard
+                  </Link>
+                </Button>
                 <Button variant="outline" size="sm" asChild>
                   <Link to="/profile">
                     <User className="h-4 w-4 mr-2" />
