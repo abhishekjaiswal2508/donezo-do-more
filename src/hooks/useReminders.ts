@@ -20,14 +20,15 @@ export const useReminders = () => {
   return useQuery({
     queryKey: ['reminders'],
     queryFn: async () => {
-      // Get all reminders
+      // Get all reminders with their completions
       const { data: reminders, error: remindersError } = await supabase
         .from('reminders')
         .select(`
           *,
           reminder_completions (
             id,
-            user_id
+            user_id,
+            file_url
           )
         `);
 
@@ -37,7 +38,7 @@ export const useReminders = () => {
       const { data: { user } } = await supabase.auth.getUser();
 
       // Transform the data to match our interface
-      const transformedReminders: Reminder[] = reminders.map((reminder) => {
+      const transformedReminders = reminders.map((reminder) => {
         const completions = reminder.reminder_completions || [];
         const isCompleted = user ? completions.some((c: any) => c.user_id === user.id) : false;
         
@@ -49,7 +50,7 @@ export const useReminders = () => {
           description: reminder.description,
           created_by: reminder.created_by,
           created_at: reminder.created_at,
-          completions: completions.length,
+          completions: completions,
           totalStudents: 25, // Mock total students for now
           isCompleted,
         };
@@ -103,6 +104,85 @@ export const useCreateReminder = () => {
       });
     },
   });
+};
+
+// Hook to delete a reminder
+export const useDeleteReminder = () => {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  const { mutate: deleteReminder, isPending, error } = useMutation({
+    mutationFn: async (reminderId: string) => {
+      const { error } = await supabase
+        .from('reminders')
+        .delete()
+        .eq('id', reminderId);
+
+      if (error) {
+        throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['reminders'] });
+      toast({
+        title: "Success",
+        description: "Assignment deleted successfully!",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete assignment",
+        variant: "destructive",
+      });
+    },
+  });
+
+  return {
+    mutate: deleteReminder,
+    isPending,
+    error,
+  };
+};
+
+// Hook to download assignment file
+export const useDownloadFile = () => {
+  const { toast } = useToast();
+
+  const downloadFile = async (fileUrl: string, fileName: string) => {
+    try {
+      const { data, error } = await supabase.storage
+        .from('assignments')
+        .download(fileUrl);
+
+      if (error) {
+        throw error;
+      }
+
+      // Create download link
+      const url = URL.createObjectURL(data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast({
+        title: "Success",
+        description: "File downloaded successfully!",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",  
+        description: error.message || "Failed to download file",
+        variant: "destructive",
+      });
+    }
+  };
+
+  return { downloadFile };
 };
 
 export const useCompleteReminder = () => {

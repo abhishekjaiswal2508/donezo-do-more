@@ -1,17 +1,15 @@
-import { useState } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, Link, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { Bell, Home, Plus, Trophy, User, Menu, X, LogOut } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { BookOpen, LogOut, Plus, User } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 const Layout = () => {
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const { user, signOut } = useAuth();
+  const { user, signOut, loading } = useAuth();
   const { toast } = useToast();
+  const location = useLocation();
 
-  const handleSignOut = async () => {
+  const handleLogout = async () => {
     const { error } = await signOut();
     if (error) {
       toast({
@@ -21,142 +19,64 @@ const Layout = () => {
       });
     } else {
       toast({
-        title: "Signed out",
-        description: "You have been signed out successfully",
+        title: "Success",
+        description: "Signed out successfully",
       });
     }
   };
 
-  const navigation = [
-    { name: 'Home', href: '/', icon: Home, onClick: () => window.location.href = '/' },
-    { name: 'Create', href: '/create', icon: Plus, onClick: () => window.location.href = '/create' },
-    { name: 'Leaderboard', href: '/leaderboard', icon: Trophy },
-    { name: 'Profile', href: '/profile', icon: User },
-  ];
-
   return (
     <div className="min-h-screen bg-background">
-      {/* Mobile Header */}
-      <div className="lg:hidden">
-        <Card className="rounded-none border-x-0 border-t-0">
-          <div className="flex items-center justify-between p-4">
-            <h1 className="text-xl font-bold text-primary">Donezo</h1>
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" size="icon">
-                <Bell className="h-5 w-5" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              >
-                {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-              </Button>
-            </div>
+      {/* Header */}
+      <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="container flex h-14 items-center">
+          <div className="mr-4 flex">
+            <Link to="/" className="mr-6 flex items-center space-x-2">
+              <BookOpen className="h-6 w-6" />
+              <span className="font-bold">Assignment Board</span>
+            </Link>
           </div>
-          
-          {isMobileMenuOpen && (
-            <div className="border-t bg-card p-4">
-              <nav className="grid gap-2">
-                {navigation.map((item) => (
-                  <Button
-                    key={item.name}
-                    variant="ghost"
-                    className="justify-start"
-                    onClick={() => {
-                      setIsMobileMenuOpen(false);
-                      if (item.onClick) item.onClick();
-                    }}
-                  >
-                    <item.icon className="mr-3 h-5 w-5" />
-                    {item.name}
-                  </Button>
-                ))}
-              </nav>
-            </div>
-          )}
-        </Card>
-      </div>
-
-      <div className="lg:flex">
-        {/* Desktop Sidebar */}
-        <div className="hidden lg:block lg:w-64">
-          <div className="fixed inset-y-0 left-0 w-64 bg-card border-r">
-            <div className="flex flex-col h-full">
-              <div className="flex items-center h-16 px-6 border-b">
-                <h1 className="text-2xl font-bold text-primary">Donezo</h1>
+          <div className="flex flex-1 items-center justify-between space-x-2 md:justify-end">
+            {user ? (
+              <div className="flex items-center gap-4">
+                <span className="text-sm text-muted-foreground">
+                  Welcome back!
+                </span>
+                <Button variant="outline" size="sm" asChild>
+                  <Link to="/profile">
+                    <User className="h-4 w-4 mr-2" />
+                    Profile
+                  </Link>
+                </Button>
+                <Button variant="outline" size="sm" asChild>
+                  <Link to="/create">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Assignment
+                  </Link>
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={handleLogout}
+                  disabled={loading}
+                >
+                  <LogOut className="h-4 w-4 mr-2" />
+                  {loading ? 'Signing out...' : 'Sign Out'}
+                </Button>
               </div>
-              
-              <nav className="flex-1 p-6">
-                <div className="space-y-2">
-                  {navigation.map((item) => (
-                    <Button
-                      key={item.name}
-                      variant="ghost"
-                      className="w-full justify-start"
-                      onClick={item.onClick}
-                    >
-                      <item.icon className="mr-3 h-5 w-5" />
-                      {item.name}
-                    </Button>
-                  ))}
-                </div>
-              </nav>
-              
-              <div className="p-6 border-t">
-                {user ? (
-                  <div className="space-y-2">
-                    <div className="text-sm text-muted-foreground px-3 py-2">
-                      Logged in as: {user.email}
-                    </div>
-                    <Button 
-                      variant="ghost" 
-                      className="w-full justify-start"
-                      onClick={handleSignOut}
-                    >
-                      <LogOut className="mr-3 h-5 w-5" />
-                      Sign Out
-                    </Button>
-                  </div>
-                ) : (
-                  <Button 
-                    variant="ghost" 
-                    className="w-full justify-start"
-                    onClick={() => window.location.href = '/auth'}
-                  >
-                    <User className="mr-3 h-5 w-5" />
-                    Sign In
-                  </Button>
-                )}
-              </div>
-            </div>
+            ) : (
+              <Button variant="outline" size="sm" asChild>
+                <Link to="/auth">Sign In</Link>
+              </Button>
+            )}
           </div>
         </div>
+      </header>
 
-        {/* Main Content */}
-        <div className="flex-1 lg:ml-64">
-          <main className="p-4 lg:p-8">
-            <Outlet />
-          </main>
-        </div>
-      </div>
-
-      {/* Mobile Bottom Navigation */}
-      <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-card border-t">
-        <nav className="flex">
-          {navigation.map((item) => (
-            <Button
-              key={item.name}
-              variant="ghost"
-              className="flex-1 flex-col h-16 rounded-none"
-              onClick={item.onClick}
-            >
-              <item.icon className="h-5 w-5" />
-              <span className="text-xs mt-1">{item.name}</span>
-            </Button>
-          ))}
-        </nav>
-      </div>
+      {/* Main Content */}
+      <main className="container mx-auto py-6 px-4">
+        <Outlet />
+      </main>
     </div>
   );
 };

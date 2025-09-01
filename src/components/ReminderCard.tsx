@@ -1,8 +1,22 @@
-import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, Clock, FileText, Users, CheckCircle } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
+import { Button } from '@/components/ui/button';
+import { Calendar, Clock, User, Upload, CheckCircle, Download, Trash2 } from 'lucide-react';
+import { format, isAfter } from 'date-fns';
+import { useCompleteReminder, useUploadAssignment, useDeleteReminder, useDownloadFile } from '@/hooks/useReminders';
+import { useAuth } from '@/hooks/useAuth';
+import { useRef } from 'react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 
 interface ReminderCardProps {
   reminder: {
@@ -10,105 +24,182 @@ interface ReminderCardProps {
     title: string;
     subject: string;
     deadline: string;
-    description: string;
+    description: string | null;
     created_by: string;
-    priority: 'high' | 'medium' | 'low';
-    completions?: number;
-    totalStudents?: number;
-    isCompleted?: boolean;
+    created_at: string;
+    completions: any[];
+    totalStudents: number;
+    isCompleted: boolean;
+    priority?: 'high' | 'medium' | 'low';
   };
-  onComplete?: (id: string) => void;
-  onUpload?: (id: string) => void;
 }
 
-const ReminderCard = ({ reminder, onComplete, onUpload }: ReminderCardProps) => {
+const ReminderCard = ({ reminder }: ReminderCardProps) => {
+  const { user } = useAuth();
+  const completeReminderMutation = useCompleteReminder();
+  const uploadAssignmentMutation = useUploadAssignment();
+  const deleteReminderMutation = useDeleteReminder();
+  const { downloadFile } = useDownloadFile();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const deadline = new Date(reminder.deadline);
-  const isOverdue = deadline < new Date();
-  const timeLeft = formatDistanceToNow(deadline, { addSuffix: true });
-  
+  const isOverdue = isAfter(new Date(), deadline);
+
+  const handleComplete = () => {
+    completeReminderMutation.mutate(reminder.id);
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    uploadAssignmentMutation.mutate({ reminderId: reminder.id, file });
+  };
+
+  const handleDownload = async () => {
+    const completedByCurrentUser = reminder.completions?.find(c => c.user_id === user?.id);
+    if (completedByCurrentUser?.file_url) {
+      const fileName = `${reminder.title}_${completedByCurrentUser.file_url.split('/').pop()}`;
+      await downloadFile(completedByCurrentUser.file_url, fileName);
+    }
+  };
+
+  const handleDelete = () => {
+    deleteReminderMutation.mutate(reminder.id);
+  };
+
+  const isCreatedByCurrentUser = user?.id === reminder.created_by;
+  const completedByCurrentUser = reminder.completions?.find(c => c.user_id === user?.id);
+  const hasUploadedFile = completedByCurrentUser?.file_url;
+
   const getPriorityColor = (priority: string) => {
     switch (priority) {
-      case 'high': return 'bg-priority-high text-priority-high-foreground';
-      case 'medium': return 'bg-priority-medium text-priority-medium-foreground';
-      case 'low': return 'bg-priority-low text-priority-low-foreground';
-      default: return 'bg-secondary text-secondary-foreground';
+      case 'high':
+        return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200';
+      case 'medium':
+        return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200';
+      case 'low':
+        return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
+      default:
+        return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200';
     }
   };
 
   return (
-    <Card className="p-6 shadow-donezo hover:shadow-donezo-lg transition-all duration-300">
-      <div className="space-y-4">
+    <Card className="hover:shadow-md transition-shadow">
+      <CardHeader>
         <div className="flex items-start justify-between">
           <div className="space-y-2">
-            <h3 className="text-lg font-semibold text-card-foreground">{reminder.title}</h3>
+            <CardTitle className="text-lg">{reminder.title}</CardTitle>
             <div className="flex gap-2">
-              <Badge variant="secondary" className="text-xs">
-                {reminder.subject}
-              </Badge>
-              <Badge className={`text-xs capitalize ${getPriorityColor(reminder.priority)}`}>
-                {reminder.priority} Priority
-              </Badge>
+              <Badge variant="outline">{reminder.subject}</Badge>
+              {reminder.priority && (
+                <Badge className={getPriorityColor(reminder.priority)}>
+                  {reminder.priority} priority
+                </Badge>
+              )}
+              {reminder.isCompleted && (
+                <Badge variant="secondary" className="bg-green-100 text-green-800">
+                  <CheckCircle className="h-3 w-3 mr-1" />
+                  Completed
+                </Badge>
+              )}
             </div>
           </div>
-          {reminder.isCompleted && (
-            <CheckCircle className="h-6 w-6 text-secondary" />
-          )}
         </div>
-
-        <p className="text-sm text-muted-foreground line-clamp-2">
-          {reminder.description}
-        </p>
-
-        <div className="flex items-center gap-4 text-sm text-muted-foreground">
+        {reminder.description && (
+          <CardDescription>{reminder.description}</CardDescription>
+        )}
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-center gap-4 text-sm text-muted-foreground mb-4">
           <div className="flex items-center gap-2">
             <Calendar className="h-4 w-4" />
-            <span>{deadline.toLocaleDateString()}</span>
+            <span>{format(deadline, 'PPp')}</span>
           </div>
           <div className="flex items-center gap-2">
-            <Clock className={`h-4 w-4 ${isOverdue ? 'text-destructive' : ''}`} />
-            <span className={isOverdue ? 'text-destructive' : ''}>{timeLeft}</span>
-          </div>
-        </div>
-
-        {reminder.completions !== undefined && (
-          <div className="flex items-center gap-2 text-sm">
-            <Users className="h-4 w-4 text-muted-foreground" />
-            <span className="text-muted-foreground">
-              {reminder.completions}/{reminder.totalStudents || 0} completed
+            <Clock className={`h-4 w-4 ${isOverdue ? 'text-red-500' : ''}`} />
+            <span className={isOverdue ? 'text-red-500' : ''}>
+              {isOverdue ? 'Overdue' : 'Upcoming'}
             </span>
-            <div className="flex-1 bg-muted rounded-full h-2">
-              <div 
-                className="bg-secondary h-2 rounded-full transition-all duration-300"
-                style={{ 
-                  width: `${(reminder.completions / (reminder.totalStudents || 1)) * 100}%` 
-                }}
-              />
-            </div>
           </div>
-        )}
+          <div className="flex items-center gap-2">
+            <User className="h-4 w-4" />
+            <span>{reminder.completions?.length || 0} completed</span>
+          </div>
+        </div>
 
-        <div className="flex gap-2 pt-2">
-          {!reminder.isCompleted && onComplete && (
-            <Button 
-              variant="outline" 
+        <div className="flex flex-wrap gap-2 mt-4">
+          {!reminder.isCompleted && (
+            <Button
+              onClick={handleComplete}
+              disabled={completeReminderMutation.isPending}
               size="sm"
-              onClick={() => onComplete(reminder.id)}
             >
-              Mark Complete
+              <CheckCircle className="h-4 w-4 mr-2" />
+              {completeReminderMutation.isPending ? 'Marking...' : 'Mark Complete'}
             </Button>
           )}
-          {onUpload && (
-            <Button 
-              variant="secondary" 
+          
+          <Button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploadAssignmentMutation.isPending}
+            variant="outline"
+            size="sm"
+          >
+            <Upload className="h-4 w-4 mr-2" />
+            {uploadAssignmentMutation.isPending ? 'Uploading...' : 'Upload Assignment'}
+          </Button>
+
+          {hasUploadedFile && (
+            <Button
+              onClick={handleDownload}
+              variant="outline"
               size="sm"
-              onClick={() => onUpload(reminder.id)}
             >
-              <FileText className="h-4 w-4 mr-2" />
-              Upload Assignment
+              <Download className="h-4 w-4 mr-2" />
+              Download
             </Button>
+          )}
+
+          {isCreatedByCurrentUser && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" size="sm">
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete Assignment</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Are you sure you want to delete this assignment? This action cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleDelete}
+                    disabled={deleteReminderMutation.isPending}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    {deleteReminderMutation.isPending ? 'Deleting...' : 'Delete'}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           )}
         </div>
-      </div>
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          className="hidden"
+          accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png"
+          onChange={handleFileUpload}
+        />
+      </CardContent>
     </Card>
   );
 };

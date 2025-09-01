@@ -1,199 +1,236 @@
-import { useState } from 'react';
-import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import ReminderCard from '@/components/ReminderCard';
-import { Search, Filter, Plus, LogIn } from 'lucide-react';
-import { useReminders, useCompleteReminder, useUploadAssignment } from '@/hooks/useReminders';
-import { useStats } from '@/hooks/useStats';
+import { useState, useEffect } from 'react';
+import { useReminders } from '@/hooks/useReminders';
 import { useAuth } from '@/hooks/useAuth';
-import { useToast } from '@/hooks/use-toast';
-import { useNavigate } from 'react-router-dom';
+import { useStats } from '@/hooks/useStats';
+import ReminderCard from '@/components/ReminderCard';
+import SearchAndFilter from '@/components/SearchAndFilter';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Plus, BookOpen, CheckCircle, Clock, Trophy } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { supabase } from '@/integrations/supabase/client';
 
 const Index = () => {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedSubject, setSelectedSubject] = useState('All');
-  const { user, loading } = useAuth();
-  const { toast } = useToast();
-  const navigate = useNavigate();
-  
-  // Fetch reminders and stats from Supabase
-  const { data: reminders = [], isLoading: remindersLoading } = useReminders();
-  const { data: stats, isLoading: statsLoading } = useStats();
-  const completeReminderMutation = useCompleteReminder();
-  const uploadAssignmentMutation = useUploadAssignment();
+  const { user } = useAuth();
+  const { data: reminders, isLoading, error, refetch } = useReminders();
+  const { data: stats } = useStats();
+  const [search, setSearch] = useState('');
+  const [subjectFilter, setSubjectFilter] = useState('All');
+  const [statusFilter, setStatusFilter] = useState('All');
 
-  // Calculate priority based on deadline proximity
-  const getAutomaticPriority = (deadline: string): 'high' | 'medium' | 'low' => {
-    const now = new Date();
-    const deadlineDate = new Date(deadline);
-    const daysUntilDeadline = Math.ceil((deadlineDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-    
-    if (daysUntilDeadline <= 3) return 'high';    // Red - 3 days or less
-    if (daysUntilDeadline <= 7) return 'medium';  // Yellow - 4-7 days
-    return 'low';                                  // Green - More than 7 days
-  };
+  // Set up real-time updates
+  useEffect(() => {
+    if (!user) return;
 
-  // Add automatic priority to reminders
-  const remindersWithPriority = reminders.map(reminder => ({
-    ...reminder,
-    priority: getAutomaticPriority(reminder.deadline)
-  }));
+    const channel = supabase
+      .channel('reminders-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'reminders'
+        },
+        () => {
+          refetch();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'reminder_completions'
+        },
+        () => {
+          refetch();
+        }
+      )
+      .subscribe();
 
-  const subjects = ['All', 'Mathematics', 'Physics', 'English', 'Chemistry', 'Biology'];
-
-  const filteredReminders = remindersWithPriority.filter(reminder => {
-    const matchesSearch = reminder.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         reminder.subject.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesSubject = selectedSubject === 'All' || reminder.subject === selectedSubject;
-    return matchesSearch && matchesSubject;
-  });
-
-  const sortedReminders = filteredReminders.sort((a, b) => 
-    new Date(a.deadline).getTime() - new Date(b.deadline).getTime()
-  );
-
-  const handleComplete = (id: string) => {
-    if (!user) {
-      toast({
-        title: "Authentication required",
-        description: "Please log in to complete assignments",
-        variant: "destructive",
-      });
-      return;
-    }
-    completeReminderMutation.mutate(id);
-  };
-
-  const handleUpload = (id: string) => {
-    if (!user) {
-      toast({
-        title: "Authentication required", 
-        description: "Please log in to upload assignments",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    // Create file input to let user select file
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.pdf,.doc,.docx,.txt';
-    input.onchange = (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (file) {
-        uploadAssignmentMutation.mutate({ reminderId: id, file });
-      }
+    return () => {
+      supabase.removeChannel(channel);
     };
-    input.click();
-  };
+  }, [user, refetch]);
 
-  // Show loading state
-  if (loading || remindersLoading || statsLoading) {
+  // Filter reminders based on search and filters
+  const filteredReminders = reminders?.filter(reminder => {
+    const matchesSearch = search === '' || 
+      reminder.title.toLowerCase().includes(search.toLowerCase()) ||
+      reminder.description?.toLowerCase().includes(search.toLowerCase()) ||
+      reminder.subject.toLowerCase().includes(search.toLowerCase());
+
+    const matchesSubject = subjectFilter === 'All' || reminder.subject === subjectFilter;
+
+    const matchesStatus = statusFilter === 'All' || 
+      (statusFilter === 'Completed' && reminder.isCompleted) ||
+      (statusFilter === 'Pending' && !reminder.isCompleted);
+
+    return matchesSearch && matchesSubject && matchesStatus;
+  }) || [];
+
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-muted-foreground">Loading assignments...</div>
-      </div>
-    );
-  }
-
-  // Show login prompt if not authenticated
-  if (!user) {
-    return (
-      <div className="space-y-6">
-        <div className="text-center">
-          <h1 className="text-3xl font-bold text-foreground mb-4">Assignment Board</h1>
-          <p className="text-muted-foreground mb-6">Please log in to view and manage your assignments</p>
-          <Button onClick={() => window.location.href = '/auth'}>
-            <LogIn className="h-4 w-4 mr-2" />
-            Log In
-          </Button>
-        </div>
+        <div className="text-muted-foreground">Loading...</div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 pb-20 lg:pb-0">
+    <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Assignment Board</h1>
-          <p className="text-muted-foreground">Stay on top of your assignments</p>
+          <p className="text-muted-foreground">Track and manage your assignments</p>
         </div>
-        <Button className="lg:w-auto" onClick={() => navigate('/create')}>
-          <Plus className="h-4 w-4 mr-2" />
-          Create Reminder
-        </Button>
-      </div>
-
-      {/* Filters */}
-      <Card className="p-4">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Search assignments..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-          <div className="flex gap-2 overflow-x-auto">
-            {subjects.map((subject) => (
-              <Badge
-                key={subject}
-                variant={selectedSubject === subject ? "default" : "outline"}
-                className="cursor-pointer whitespace-nowrap"
-                onClick={() => setSelectedSubject(subject)}
-              >
-                {subject}
-              </Badge>
-            ))}
-          </div>
-        </div>
-      </Card>
-
-      {/* Stats */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <Card className="p-4">
-          <div className="text-2xl font-bold text-primary">{stats?.totalReminders || 0}</div>
-          <div className="text-sm text-muted-foreground">Total Reminders</div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-2xl font-bold text-secondary">{stats?.completedReminders || 0}</div>
-          <div className="text-sm text-muted-foreground">Completed</div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-2xl font-bold text-accent">{stats?.pendingReminders || 0}</div>
-          <div className="text-sm text-muted-foreground">Pending</div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-2xl font-bold text-destructive">{stats?.overdueReminders || 0}</div>
-          <div className="text-sm text-muted-foreground">Overdue</div>
-        </Card>
-      </div>
-
-      {/* Reminders List */}
-      <div className="space-y-4">
-        {sortedReminders.length === 0 ? (
-          <Card className="p-8 text-center">
-            <div className="text-muted-foreground">
-              No assignments found. {searchTerm && 'Try adjusting your search.'}
-            </div>
-          </Card>
-        ) : (
-          sortedReminders.map((reminder) => (
-            <ReminderCard
-              key={reminder.id}
-              reminder={reminder}
-              onComplete={handleComplete}
-              onUpload={handleUpload}
-            />
-          ))
+        {user && (
+          <Button asChild>
+            <Link to="/create">
+              <Plus className="h-4 w-4 mr-2" />
+              Add Assignment
+            </Link>
+          </Button>
         )}
       </div>
+
+      {/* Statistics */}
+      {user && stats && (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <BookOpen className="h-8 w-8 text-primary" />
+                <div>
+                  <p className="text-2xl font-bold">{stats.totalReminders}</p>
+                  <p className="text-sm text-muted-foreground">Total Assignments</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <CheckCircle className="h-8 w-8 text-green-600" />
+                <div>
+                  <p className="text-2xl font-bold">{stats.completedReminders}</p>
+                  <p className="text-sm text-muted-foreground">Completed</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <Clock className="h-8 w-8 text-yellow-600" />
+                <div>
+                  <p className="text-2xl font-bold">{stats.pendingReminders}</p>
+                  <p className="text-sm text-muted-foreground">Pending</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <Trophy className="h-8 w-8 text-red-600" />
+                <div>
+                  <p className="text-2xl font-bold">{stats.overdueReminders}</p>
+                  <p className="text-sm text-muted-foreground">Overdue</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Search and Filter */}
+      {user && (
+        <Card>
+          <CardContent className="pt-6">
+            <SearchAndFilter
+              onSearchChange={setSearch}
+              onSubjectFilter={setSubjectFilter}
+              onStatusFilter={setStatusFilter}
+              searchValue={search}
+              subjectFilter={subjectFilter}
+              statusFilter={statusFilter}
+            />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Reminders List */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <BookOpen className="h-5 w-5" />
+              Your Assignments ({filteredReminders.length})
+            </CardTitle>
+            <CardDescription>
+              Track and manage your assignments
+            </CardDescription>
+          </div>
+          {user && (
+            <Button asChild>
+              <Link to="/create">
+                <Plus className="h-4 w-4 mr-2" />
+                Add Assignment
+              </Link>
+            </Button>
+          )}
+        </CardHeader>
+        <CardContent>
+          {!user ? (
+            <div className="text-center py-8">
+              <p className="text-muted-foreground mb-4">Please sign in to view and manage assignments</p>
+              <Button asChild>
+                <Link to="/auth">Sign In</Link>
+              </Button>
+            </div>
+          ) : isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="text-muted-foreground">Loading assignments...</div>
+            </div>
+          ) : error ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="text-destructive">Error loading assignments</div>
+            </div>
+          ) : filteredReminders.length > 0 ? (
+            <div className="space-y-4">
+              {filteredReminders.map((reminder) => (
+                <ReminderCard key={reminder.id} reminder={reminder} />
+              ))}
+            </div>
+          ) : reminders && reminders.length > 0 ? (
+            <div className="text-center py-8">
+              <p className="text-muted-foreground mb-4">No assignments match your filters</p>
+              <Button variant="outline" onClick={() => {
+                setSearch('');
+                setSubjectFilter('All');
+                setStatusFilter('All');
+              }}>
+                Clear Filters
+              </Button>
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <p className="text-muted-foreground mb-4">No assignments yet</p>
+              <Button asChild>
+                <Link to="/create">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create your first assignment
+                </Link>
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 };
