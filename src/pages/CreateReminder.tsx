@@ -18,7 +18,7 @@ const CreateReminder = () => {
     subject: '',
     deadline: '',
     description: '',
-    group_id: '',
+    group_id: 'public',
   });
 
   const { user, loading } = useAuth();
@@ -144,12 +144,12 @@ const CreateReminder = () => {
 
             <div className="space-y-2">
               <Label htmlFor="group">Group (Optional)</Label>
-              <Select value={formData.group_id} onValueChange={(value) => handleInputChange('group_id', value)}>
+              <Select value={formData.group_id || 'public'} onValueChange={(value) => handleInputChange('group_id', value === 'public' ? '' : value)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select a group (or leave as public assignment)" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Public Assignment (No Group)</SelectItem>
+                  <SelectItem value="public">Public Assignment (No Group)</SelectItem>
                   {groups.map((group) => (
                     <SelectItem key={group.id} value={group.id}>
                       {group.name}
