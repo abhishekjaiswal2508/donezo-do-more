@@ -20,7 +20,7 @@ export const useReminders = () => {
   return useQuery({
     queryKey: ['reminders'],
     queryFn: async () => {
-      // Get all reminders with their completions
+      // Get all reminders with their completions and groups
       const { data: reminders, error: remindersError } = await supabase
         .from('reminders')
         .select(`
@@ -29,6 +29,10 @@ export const useReminders = () => {
             id,
             user_id,
             file_url
+          ),
+          groups (
+            id,
+            name
           )
         `);
 
@@ -50,8 +54,10 @@ export const useReminders = () => {
           description: reminder.description,
           created_by: reminder.created_by,
           created_at: reminder.created_at,
-          completions: completions,
-          totalStudents: 25, // Mock total students for now
+          group_id: reminder.group_id,
+          group: reminder.groups,
+          completions,
+          totalStudents: completions.length,
           isCompleted,
         };
       });
@@ -71,6 +77,7 @@ export const useCreateReminder = () => {
       subject: string;
       deadline: string;
       description?: string;
+      group_id?: string;
     }) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('User not authenticated');

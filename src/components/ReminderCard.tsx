@@ -29,6 +29,11 @@ interface ReminderCardProps {
     description: string | null;
     created_by: string;
     created_at: string;
+    group_id?: string;
+    group?: {
+      id: string;
+      name: string;
+    };
     completions: any[];
     totalStudents: number;
     isCompleted: boolean;
@@ -96,6 +101,11 @@ const ReminderCard = ({ reminder }: ReminderCardProps) => {
             <CardTitle className="text-lg">{reminder.title}</CardTitle>
             <div className="flex gap-2">
               <Badge variant="outline">{reminder.subject}</Badge>
+              {reminder.group && (
+                <Badge variant="secondary">
+                  Group: {reminder.group.name}
+                </Badge>
+              )}
               {reminder.priority && (
                 <Badge className={getPriorityColor(reminder.priority)}>
                   {reminder.priority} priority

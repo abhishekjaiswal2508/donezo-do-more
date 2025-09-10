@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/hooks/useAuth';
 import { useReminders } from '@/hooks/useReminders';
-import { BookOpen, LogOut, Plus, User, Trophy, Bell } from 'lucide-react';
+import { BookOpen, LogOut, Plus, User, Trophy, Bell, Users } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useMemo } from 'react';
 
@@ -77,6 +77,12 @@ const Layout = () => {
                   <Link to="/leaderboard">
                     <Trophy className="h-4 w-4 mr-2" />
                     Leaderboard
+                  </Link>
+                </Button>
+                <Button variant="outline" size="sm" asChild>
+                  <Link to="/groups">
+                    <Users className="h-4 w-4 mr-2" />
+                    Groups
                   </Link>
                 </Button>
                 <Button variant="outline" size="sm" asChild>

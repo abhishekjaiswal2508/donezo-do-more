@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useCreateReminder } from '@/hooks/useReminders';
 import { useAuth } from '@/hooks/useAuth';
+import { useGroups } from '@/hooks/useGroups';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Plus } from 'lucide-react';
 import { useEffect } from 'react';
@@ -17,9 +18,11 @@ const CreateReminder = () => {
     subject: '',
     deadline: '',
     description: '',
+    group_id: '',
   });
 
   const { user, loading } = useAuth();
+  const { groups } = useGroups();
   const createReminderMutation = useCreateReminder();
   const navigate = useNavigate();
 
@@ -137,6 +140,23 @@ const CreateReminder = () => {
                 value={formData.description}
                 onChange={(e) => handleInputChange('description', e.target.value)}
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="group">Group (Optional)</Label>
+              <Select value={formData.group_id} onValueChange={(value) => handleInputChange('group_id', value)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a group (or leave as public assignment)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Public Assignment (No Group)</SelectItem>
+                  {groups.map((group) => (
+                    <SelectItem key={group.id} value={group.id}>
+                      {group.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="flex gap-4">
