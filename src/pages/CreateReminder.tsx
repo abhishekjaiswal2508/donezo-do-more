@@ -5,13 +5,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useCreateReminder } from '@/hooks/useReminders';
+import { useCreateReminder, useSimilarReminders } from '@/hooks/useReminders';
 import { useAuth } from '@/hooks/useAuth';
 import { useGroups } from '@/hooks/useGroups';
 import { useSubjects, useCreateSubject, useDeleteSubject } from '@/hooks/useSubjects';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus, X } from 'lucide-react';
+import { ArrowLeft, Plus, X, AlertCircle } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 const CreateReminder = () => {
   const [formData, setFormData] = useState({
@@ -25,6 +26,7 @@ const CreateReminder = () => {
   const { user, loading } = useAuth();
   const { groups } = useGroups();
   const { data: subjects = [], isLoading: subjectsLoading } = useSubjects();
+  const { data: similarReminders = [] } = useSimilarReminders(formData.title, formData.subject);
   const createReminderMutation = useCreateReminder();
   const createSubjectMutation = useCreateSubject();
   const deleteSubjectMutation = useDeleteSubject();
@@ -118,6 +120,21 @@ const CreateReminder = () => {
                 onChange={(e) => handleInputChange('title', e.target.value)}
                 required
               />
+              {similarReminders.length > 0 && (
+                <Alert variant="default" className="mt-2">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    <div className="font-medium mb-1">Similar assignments found:</div>
+                    <ul className="text-sm space-y-1">
+                      {similarReminders.map((reminder) => (
+                        <li key={reminder.id} className="text-muted-foreground">
+                          • {reminder.title} ({reminder.subject}) - {new Date(reminder.deadline).toLocaleDateString()}
+                        </li>
+                      ))}
+                    </ul>
+                  </AlertDescription>
+                </Alert>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -164,20 +181,25 @@ const CreateReminder = () => {
                         ) : subjects.length === 0 ? (
                           <p className="text-sm text-muted-foreground">No subjects yet. Add one above!</p>
                         ) : (
-                          subjects.map((subject) => (
-                            <div key={subject.id} className="flex items-center justify-between p-2 border rounded">
-                              <span>{subject.name}</span>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleDeleteSubject(subject.id)}
-                                disabled={deleteSubjectMutation.isPending}
-                              >
-                                <X className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          ))
+                          subjects.map((subject) => {
+                            const isSystemSubject = subject.created_by === '00000000-0000-0000-0000-000000000000';
+                            return (
+                              <div key={subject.id} className="flex items-center justify-between p-2 border rounded">
+                                <span>{subject.name}</span>
+                                {!isSystemSubject && (
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleDeleteSubject(subject.id)}
+                                    disabled={deleteSubjectMutation.isPending}
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </Button>
+                                )}
+                              </div>
+                            );
+                          })
                         )}
                       </div>
                     </div>

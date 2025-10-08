@@ -67,6 +67,35 @@ export const useReminders = () => {
   });
 };
 
+// Hook to search for similar assignments as user types
+export const useSimilarReminders = (title: string, subject: string) => {
+  return useQuery({
+    queryKey: ['similar-reminders', title, subject],
+    queryFn: async () => {
+      if (!title.trim() || title.length < 3) return [];
+      
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return [];
+
+      const { data, error } = await supabase
+        .from('reminders')
+        .select('id, title, subject, deadline')
+        .eq('created_by', user.id)
+        .ilike('title', `%${title.trim()}%`);
+
+      if (error) throw error;
+      
+      // Filter further by subject if selected
+      if (subject) {
+        return data.filter(r => r.subject === subject);
+      }
+      
+      return data || [];
+    },
+    enabled: title.length >= 3,
+  });
+};
+
 export const useCreateReminder = () => {
   const queryClient = useQueryClient();
   const { toast } = useToast();
