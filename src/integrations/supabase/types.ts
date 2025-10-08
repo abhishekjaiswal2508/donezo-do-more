@@ -151,13 +151,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "reminders_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["auth_user_id"]
-          },
-          {
             foreignKeyName: "reminders_group_id_fkey"
             columns: ["group_id"]
             isOneToOne: false
