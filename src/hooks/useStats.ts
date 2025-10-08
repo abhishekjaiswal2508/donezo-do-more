@@ -7,6 +7,15 @@ export const useStats = () => {
     queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
       
+      if (!user) {
+        return {
+          totalReminders: 0,
+          completedReminders: 0,
+          pendingReminders: 0,
+          overdueReminders: 0,
+        };
+      }
+
       // Get total reminders count
       const { count: totalReminders } = await supabase
         .from('reminders')
@@ -16,42 +25,26 @@ export const useStats = () => {
       const { count: completedReminders } = await supabase
         .from('reminder_completions')
         .select('*', { count: 'exact', head: true })
-        .eq('user_id', user?.id);
+        .eq('user_id', user.id);
 
-      // Get pending reminders count
-      const { data: allReminders } = await supabase
-        .from('reminders')
-        .select(`
-          id,
-          reminder_completions!inner (
-            user_id
-          )
-        `);
+      // Calculate pending: total minus completed by current user
+      const pendingReminders = (totalReminders || 0) - (completedReminders || 0);
 
-      // Count reminders not completed by current user
-      const { data: userCompletions } = await supabase
-        .from('reminder_completions')
-        .select('reminder_id')
-        .eq('user_id', user?.id);
-
-      const completedIds = new Set(userCompletions?.map(c => c.reminder_id) || []);
-      const pendingReminders = (allReminders?.length || 0) - completedIds.size;
-
-      // Get overdue reminders count
+      // Get overdue reminders count (not completed and past deadline)
       const now = new Date().toISOString();
       const { data: overdueRemindersData } = await supabase
         .from('reminders')
         .select(`
           id,
           deadline,
-          reminder_completions (
+          reminder_completions!left (
             user_id
           )
         `)
         .lt('deadline', now);
 
       const overdueCount = overdueRemindersData?.filter(reminder => {
-        const isCompleted = reminder.reminder_completions.some((c: any) => c.user_id === user?.id);
+        const isCompleted = reminder.reminder_completions?.some((c: any) => c.user_id === user.id);
         return !isCompleted;
       }).length || 0;
 

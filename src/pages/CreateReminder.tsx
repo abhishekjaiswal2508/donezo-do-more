@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,9 +8,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useCreateReminder } from '@/hooks/useReminders';
 import { useAuth } from '@/hooks/useAuth';
 import { useGroups } from '@/hooks/useGroups';
+import { useSubjects, useCreateSubject, useDeleteSubject } from '@/hooks/useSubjects';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus } from 'lucide-react';
-import { useEffect } from 'react';
+import { ArrowLeft, Plus, X } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 
 const CreateReminder = () => {
   const [formData, setFormData] = useState({
@@ -23,8 +24,14 @@ const CreateReminder = () => {
 
   const { user, loading } = useAuth();
   const { groups } = useGroups();
+  const { data: subjects = [], isLoading: subjectsLoading } = useSubjects();
   const createReminderMutation = useCreateReminder();
+  const createSubjectMutation = useCreateSubject();
+  const deleteSubjectMutation = useDeleteSubject();
   const navigate = useNavigate();
+  
+  const [newSubject, setNewSubject] = useState('');
+  const [showSubjectDialog, setShowSubjectDialog] = useState(false);
 
   // Redirect if not logged in
   useEffect(() => {
@@ -33,7 +40,17 @@ const CreateReminder = () => {
     }
   }, [user, loading, navigate]);
 
-  const subjects = ['Mathematics', 'Physics', 'English', 'Chemistry', 'Biology', 'History', 'Computer Science'];
+  const handleAddSubject = async () => {
+    if (!newSubject.trim()) return;
+    
+    await createSubjectMutation.mutateAsync(newSubject.trim());
+    setNewSubject('');
+    setShowSubjectDialog(false);
+  };
+
+  const handleDeleteSubject = async (id: string) => {
+    await deleteSubjectMutation.mutateAsync(id);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -104,17 +121,90 @@ const CreateReminder = () => {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="subject">Subject *</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="subject">Subject *</Label>
+                <Dialog open={showSubjectDialog} onOpenChange={setShowSubjectDialog}>
+                  <DialogTrigger asChild>
+                    <Button type="button" variant="ghost" size="sm">
+                      <Plus className="h-4 w-4 mr-1" />
+                      Add Subject
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Manage Subjects</DialogTitle>
+                      <DialogDescription>
+                        Add or remove subjects from your list
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="New subject name"
+                          value={newSubject}
+                          onChange={(e) => setNewSubject(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleAddSubject();
+                            }
+                          }}
+                        />
+                        <Button 
+                          type="button" 
+                          onClick={handleAddSubject}
+                          disabled={!newSubject.trim() || createSubjectMutation.isPending}
+                        >
+                          Add
+                        </Button>
+                      </div>
+                      <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                        {subjectsLoading ? (
+                          <p className="text-sm text-muted-foreground">Loading subjects...</p>
+                        ) : subjects.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">No subjects yet. Add one above!</p>
+                        ) : (
+                          subjects.map((subject) => (
+                            <div key={subject.id} className="flex items-center justify-between p-2 border rounded">
+                              <span>{subject.name}</span>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeleteSubject(subject.id)}
+                                disabled={deleteSubjectMutation.isPending}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button type="button" variant="outline" onClick={() => setShowSubjectDialog(false)}>
+                        Done
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </div>
               <Select value={formData.subject} onValueChange={(value) => handleInputChange('subject', value)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select a subject" />
                 </SelectTrigger>
                 <SelectContent>
-                  {subjects.map((subject) => (
-                    <SelectItem key={subject} value={subject}>
-                      {subject}
-                    </SelectItem>
-                  ))}
+                  {subjectsLoading ? (
+                    <SelectItem value="loading" disabled>Loading...</SelectItem>
+                  ) : subjects.length === 0 ? (
+                    <SelectItem value="none" disabled>No subjects available</SelectItem>
+                  ) : (
+                    subjects.map((subject) => (
+                      <SelectItem key={subject.id} value={subject.name}>
+                        {subject.name}
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
             </div>
