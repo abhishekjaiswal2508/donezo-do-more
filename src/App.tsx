@@ -11,6 +11,7 @@ import Profile from "./pages/Profile";
 import Leaderboard from "./pages/Leaderboard";
 import Notifications from "./pages/Notifications";
 import Groups from "./pages/Groups";
+import ExamSchedule from "./pages/ExamSchedule";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -29,6 +30,7 @@ const App = () => (
             <Route path="/leaderboard" element={<Leaderboard />} />
             <Route path="/notifications" element={<Notifications />} />
             <Route path="/groups" element={<Groups />} />
+            <Route path="/exams" element={<ExamSchedule />} />
             <Route path="/auth" element={<Auth />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />

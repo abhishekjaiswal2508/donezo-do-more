@@ -14,6 +14,53 @@ export type Database = {
   }
   public: {
     Tables: {
+      exams: {
+        Row: {
+          created_at: string
+          created_by: string
+          description: string | null
+          exam_date: string
+          exam_type: string
+          group_id: string | null
+          id: string
+          subject: string
+          updated_at: string
+          uploader_name: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          description?: string | null
+          exam_date: string
+          exam_type: string
+          group_id?: string | null
+          id?: string
+          subject: string
+          updated_at?: string
+          uploader_name: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          exam_date?: string
+          exam_type?: string
+          group_id?: string | null
+          id?: string
+          subject?: string
+          updated_at?: string
+          uploader_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "exams_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       group_members: {
         Row: {
           group_id: string
