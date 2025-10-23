@@ -111,18 +111,19 @@ export const useCreateReminder = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('User not authenticated');
 
-      // Check for duplicate assignments (same title and subject)
-      const { data: existingReminders, error: checkError } = await supabase
-        .from('reminders')
-        .select('id, title, subject')
-        .eq('title', reminder.title.trim())
-        .eq('subject', reminder.subject)
-        .eq('created_by', user.id);
+      // Check for duplicates using AI
+      const { data: duplicateCheck, error: duplicateError } = await supabase.functions.invoke('check-duplicate', {
+        body: {
+          type: 'reminder',
+          item: reminder
+        }
+      });
 
-      if (checkError) throw checkError;
-
-      if (existingReminders && existingReminders.length > 0) {
-        throw new Error('An assignment with the same title and subject already exists');
+      if (duplicateError) {
+        console.error('Duplicate check error:', duplicateError);
+        // Continue with creation if duplicate check fails
+      } else if (duplicateCheck?.isDuplicate) {
+        throw new Error(duplicateCheck.message || 'This assignment is already registered');
       }
 
       const { data, error } = await supabase

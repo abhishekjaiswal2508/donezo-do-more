@@ -55,6 +55,21 @@ export const useCreateExam = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('User not authenticated');
 
+      // Check for duplicates using AI
+      const { data: duplicateCheck, error: duplicateError } = await supabase.functions.invoke('check-duplicate', {
+        body: {
+          type: 'exam',
+          item: exam
+        }
+      });
+
+      if (duplicateError) {
+        console.error('Duplicate check error:', duplicateError);
+        // Continue with creation if duplicate check fails
+      } else if (duplicateCheck?.isDuplicate) {
+        throw new Error(duplicateCheck.message || 'This exam is already registered');
+      }
+
       // Get user profile for uploader name
       const { data: profile } = await supabase
         .from('users')

@@ -1,1 +1,4 @@
 project_id = "zyrfekdovlsxoqzyhutk"
+
+[functions.check-duplicate]
+verify_jwt = false
