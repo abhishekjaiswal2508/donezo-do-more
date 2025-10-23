@@ -2,3 +2,9 @@ project_id = "zyrfekdovlsxoqzyhutk"
 
 [functions.check-duplicate]
 verify_jwt = false
+
+[functions.voice-to-text]
+verify_jwt = true
+
+[functions.voice-assistant]
+verify_jwt = true

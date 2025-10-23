@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useStats } from '@/hooks/useStats';
 import ReminderCard from '@/components/ReminderCard';
 import SearchAndFilter from '@/components/SearchAndFilter';
+import { VoiceAssistant } from '@/components/VoiceAssistant';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Plus, BookOpen, CheckCircle, Clock, Trophy } from 'lucide-react';
@@ -79,6 +80,9 @@ const Index = () => {
 
   return (
     <div className="space-y-6">
+      {/* Voice Assistant */}
+      {user && <VoiceAssistant />}
+      
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
