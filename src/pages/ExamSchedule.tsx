@@ -155,10 +155,9 @@ const ExamSchedule = () => {
                   onValueChange={(value) => setFormData({ ...formData, group_id: value })}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select a group" />
+                    <SelectValue placeholder="Select a group (optional)" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">No Group</SelectItem>
                     {groups?.map((group) => (
                       <SelectItem key={group.id} value={group.id}>
                         {group.name}
