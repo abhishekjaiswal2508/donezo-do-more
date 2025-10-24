@@ -12,7 +12,7 @@ serve(async (req) => {
   }
 
   try {
-    const { text, action } = await req.json();
+    const { text, action, conversationHistory } = await req.json();
     
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
@@ -38,26 +38,44 @@ serve(async (req) => {
       const { data: reminders } = await supabase
         .from('reminders')
         .select('*')
-        .gte('deadline', new Date().toISOString())
         .order('deadline', { ascending: true });
 
       const { data: exams } = await supabase
         .from('exams')
         .select('*')
-        .gte('date', new Date().toISOString())
-        .order('date', { ascending: true });
+        .order('exam_date', { ascending: true });
+
+      const upcomingReminders = reminders?.filter(r => new Date(r.deadline) >= new Date()) || [];
+      const overdueReminders = reminders?.filter(r => new Date(r.deadline) < new Date()) || [];
+      const upcomingExams = exams?.filter(e => new Date(e.exam_date) >= new Date()) || [];
+      const pastExams = exams?.filter(e => new Date(e.exam_date) < new Date()) || [];
 
       const prompt = `Based on this user query: "${text}"
       
-Here are the upcoming reminders: ${JSON.stringify(reminders || [])}
-Here are the upcoming exams: ${JSON.stringify(exams || [])}
+Upcoming Reminders (${upcomingReminders.length}):
+${upcomingReminders.map(r => `- ${r.title} (${r.subject || 'No subject'}) - Due: ${new Date(r.deadline).toLocaleDateString()}`).join('\n')}
 
-Provide a natural, conversational response about their pending assignments and upcoming exams.`;
+Overdue Reminders (${overdueReminders.length}):
+${overdueReminders.map(r => `- ${r.title} (${r.subject || 'No subject'}) - Was due: ${new Date(r.deadline).toLocaleDateString()}`).join('\n')}
+
+Upcoming Exams (${upcomingExams.length}):
+${upcomingExams.map(e => `- ${e.subject} ${e.exam_type} - Date: ${new Date(e.exam_date).toLocaleDateString()}`).join('\n')}
+
+Past Exams (${pastExams.length}):
+${pastExams.map(e => `- ${e.subject} ${e.exam_type} - Was on: ${new Date(e.exam_date).toLocaleDateString()}`).join('\n')}
+
+Provide a natural, helpful response. Include specific details from the data above. Be conversational and friendly.`;
 
       const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
       if (!lovableApiKey) {
         throw new Error('LOVABLE_API_KEY not configured');
       }
+
+      const messages = [
+        { role: 'system', content: 'You are a helpful study assistant. Provide brief, natural, and friendly responses. When listing items, be clear and specific.' },
+        ...(conversationHistory || []),
+        { role: 'user', content: prompt }
+      ];
 
       const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
         method: 'POST',
@@ -67,10 +85,7 @@ Provide a natural, conversational response about their pending assignments and u
         },
         body: JSON.stringify({
           model: 'google/gemini-2.5-flash',
-          messages: [
-            { role: 'system', content: 'You are a helpful assistant. Provide brief, natural responses.' },
-            { role: 'user', content: prompt }
-          ],
+          messages,
         }),
       });
 
@@ -84,7 +99,10 @@ Provide a natural, conversational response about their pending assignments and u
     }
 
     // Handle create actions (exam or reminder)
-    const prompt = `Extract structured information from this voice command: "${text}"
+    const messages = [
+      { role: 'system', content: 'You are a voice command parser. Always respond with valid JSON only. Use the conversation history to fill in missing details if the user is providing additional information.' },
+      ...(conversationHistory || []),
+      { role: 'user', content: `Extract structured information from this voice command: "${text}"
 
 Determine if this is:
 1. An EXAM: Has specific exam date/time, subject, and is about a test/quiz/exam
@@ -95,12 +113,13 @@ Return JSON with this structure:
   "type": "exam" or "reminder",
   "title": "extracted title",
   "subject": "extracted subject name",
-  "date": "YYYY-MM-DD format",
+  "date": "YYYY-MM-DD format (use current year 2025 if year not specified)",
   "time": "HH:MM format (for exams only)",
   "description": "any additional details"
 }
 
-If information is missing or unclear, return: { "type": "clarification", "message": "what you need to clarify" }`;
+If critical information is missing and you cannot infer it from conversation history, return: { "type": "clarification", "message": "what specific information you need" }` }
+    ];
 
     const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
     if (!lovableApiKey) {
@@ -115,10 +134,7 @@ If information is missing or unclear, return: { "type": "clarification", "messag
       },
       body: JSON.stringify({
         model: 'google/gemini-2.5-flash',
-        messages: [
-          { role: 'system', content: 'You are a voice command parser. Always respond with valid JSON only.' },
-          { role: 'user', content: prompt }
-        ],
+        messages,
       }),
     });
 

@@ -16,6 +16,7 @@ declare global {
 export const VoiceAssistant = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [conversationHistory, setConversationHistory] = useState<Array<{ role: string; content: string }>>([]);
   const recognitionRef = useRef<any>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -95,33 +96,42 @@ export const VoiceAssistant = () => {
     try {
       toast({ title: 'I heard:', description: transcribedText });
 
+      // Add user message to conversation history
+      const updatedHistory = [...conversationHistory, { role: 'user', content: transcribedText }];
+
       // Detect if it's a query or create command
-      const isQuery = /how many|what|show|tell|list|pending|upcoming/i.test(transcribedText);
+      const isQuery = /how many|what|show|tell|list|pending|upcoming|overdue/i.test(transcribedText);
 
       // Process with AI using Gemini
       const { data: aiData, error: aiError } = await supabase.functions.invoke(
         'voice-assistant',
-        { body: { text: transcribedText, action: isQuery ? 'query' : 'create' } }
+        { body: { text: transcribedText, action: isQuery ? 'query' : 'create', conversationHistory: updatedHistory } }
       );
 
       if (aiError) throw aiError;
 
       // Handle query response
       if (aiData.type === 'response') {
+        const assistantMessage = { role: 'assistant', content: aiData.message };
+        setConversationHistory([...updatedHistory, assistantMessage]);
+        
         toast({ 
           title: 'Assistant', 
           description: aiData.message,
-          duration: 6000 
+          duration: 8000 
         });
         return;
       }
 
       // Handle clarification needed
       if (aiData.type === 'clarification') {
+        const assistantMessage = { role: 'assistant', content: aiData.message };
+        setConversationHistory([...updatedHistory, assistantMessage]);
+        
         toast({ 
           title: 'Need more info', 
           description: aiData.message,
-          variant: 'destructive' 
+          duration: 6000
         });
         return;
       }
@@ -159,6 +169,8 @@ export const VoiceAssistant = () => {
             throw examError;
           }
         } else {
+          const successMessage = `Exam created: ${aiData.subject} on ${aiData.date}`;
+          setConversationHistory([...updatedHistory, { role: 'assistant', content: successMessage }]);
           toast({ 
             title: 'Exam created!', 
             description: `${aiData.subject} on ${aiData.date}` 
@@ -190,9 +202,11 @@ export const VoiceAssistant = () => {
             throw reminderError;
           }
         } else {
+          const successMessage = `Reminder created: ${aiData.title} due ${aiData.date}`;
+          setConversationHistory([...updatedHistory, { role: 'assistant', content: successMessage }]);
           toast({ 
             title: 'Reminder created!', 
-            description: `${aiData.subject} due ${aiData.date}` 
+            description: `${aiData.title} due ${aiData.date}` 
           });
           queryClient.invalidateQueries({ queryKey: ['reminders'] });
         }
