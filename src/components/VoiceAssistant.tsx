@@ -1,88 +1,104 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Mic, MicOff, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
 
+// Declare Web Speech API types
+declare global {
+  interface Window {
+    SpeechRecognition: any;
+    webkitSpeechRecognition: any;
+  }
+}
+
 export const VoiceAssistant = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
+  const recognitionRef = useRef<any>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const startRecording = async () => {
+  useEffect(() => {
+    // Initialize Speech Recognition
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      recognitionRef.current = new SpeechRecognition();
+      recognitionRef.current.continuous = false;
+      recognitionRef.current.interimResults = false;
+      recognitionRef.current.lang = 'en-US';
+
+      recognitionRef.current.onresult = async (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        console.log('Recognized:', transcript);
+        setIsRecording(false);
+        await processCommand(transcript);
+      };
+
+      recognitionRef.current.onerror = (event: any) => {
+        console.error('Speech recognition error:', event.error);
+        setIsRecording(false);
+        toast({
+          title: 'Recognition Error',
+          description: 'Failed to recognize speech. Please try again.',
+          variant: 'destructive'
+        });
+      };
+
+      recognitionRef.current.onend = () => {
+        setIsRecording(false);
+      };
+    }
+
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+    };
+  }, []);
+
+  const startRecording = () => {
+    if (!recognitionRef.current) {
+      toast({
+        title: 'Not Supported',
+        description: 'Speech recognition is not supported in your browser',
+        variant: 'destructive'
+      });
+      return;
+    }
+
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
-      audioChunksRef.current = [];
-
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-        }
-      };
-
-      mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        await processAudio(audioBlob);
-        stream.getTracks().forEach(track => track.stop());
-      };
-
-      mediaRecorder.start();
+      recognitionRef.current.start();
       setIsRecording(true);
       toast({ title: 'Listening...', description: 'Speak your command' });
     } catch (error) {
-      console.error('Error starting recording:', error);
-      toast({ 
-        title: 'Microphone Error', 
-        description: 'Please allow microphone access',
-        variant: 'destructive' 
+      console.error('Error starting recognition:', error);
+      toast({
+        title: 'Recognition Error',
+        description: 'Failed to start speech recognition',
+        variant: 'destructive'
       });
     }
   };
 
   const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
+    if (recognitionRef.current && isRecording) {
+      recognitionRef.current.stop();
       setIsRecording(false);
     }
   };
 
-  const processAudio = async (audioBlob: Blob) => {
+  const processCommand = async (transcribedText: string) => {
     setIsProcessing(true);
     
     try {
-      // Convert audio to base64
-      const reader = new FileReader();
-      const base64Audio = await new Promise<string>((resolve, reject) => {
-        reader.onloadend = () => {
-          const base64 = (reader.result as string).split(',')[1];
-          resolve(base64);
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(audioBlob);
-      });
-
-      // Step 1: Transcribe audio
-      const { data: transcriptData, error: transcriptError } = await supabase.functions.invoke(
-        'voice-to-text',
-        { body: { audio: base64Audio } }
-      );
-
-      if (transcriptError) throw transcriptError;
-      const transcribedText = transcriptData.text;
-      console.log('Transcribed:', transcribedText);
-
       toast({ title: 'I heard:', description: transcribedText });
 
       // Detect if it's a query or create command
       const isQuery = /how many|what|show|tell|list|pending|upcoming/i.test(transcribedText);
 
-      // Step 2: Process with AI
+      // Process with AI using Gemini
       const { data: aiData, error: aiError } = await supabase.functions.invoke(
         'voice-assistant',
         { body: { text: transcribedText, action: isQuery ? 'query' : 'create' } }
