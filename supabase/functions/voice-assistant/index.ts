@@ -55,6 +55,10 @@ Here are the upcoming exams: ${JSON.stringify(exams || [])}
 Provide a natural, conversational response about their pending assignments and upcoming exams.`;
 
       const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
+      if (!lovableApiKey) {
+        throw new Error('LOVABLE_API_KEY not configured');
+      }
+
       const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -99,6 +103,10 @@ Return JSON with this structure:
 If information is missing or unclear, return: { "type": "clarification", "message": "what you need to clarify" }`;
 
     const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
+    if (!lovableApiKey) {
+      throw new Error('LOVABLE_API_KEY not configured');
+    }
+
     const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
