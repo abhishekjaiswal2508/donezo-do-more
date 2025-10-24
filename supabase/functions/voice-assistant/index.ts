@@ -115,8 +115,11 @@ Return JSON with this structure:
   "subject": "extracted subject name",
   "date": "YYYY-MM-DD format (use current year 2025 if year not specified)",
   "time": "HH:MM format (for exams only)",
+  "exam_type": "ONLY for exams - must be exactly one of: 'Internal Test', 'Viva', 'Mid-Sem', or 'Final'. Choose the most appropriate based on context. If unclear, use 'Internal Test'",
   "description": "any additional details"
 }
+
+CRITICAL: For exams, exam_type MUST be exactly one of these four values: 'Internal Test', 'Viva', 'Mid-Sem', 'Final'
 
 If critical information is missing and you cannot infer it from conversation history, return: { "type": "clarification", "message": "what specific information you need" }` }
     ];

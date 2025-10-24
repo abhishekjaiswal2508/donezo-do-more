@@ -147,12 +147,18 @@ export const VoiceAssistant = () => {
           .eq('auth_user_id', user.id)
           .single();
 
+        // Ensure exam_type is one of the valid values
+        const validExamTypes = ['Internal Test', 'Viva', 'Mid-Sem', 'Final'];
+        const examType = validExamTypes.includes(aiData.exam_type) 
+          ? aiData.exam_type 
+          : 'Internal Test'; // Default fallback
+
         const { error: examError } = await supabase
           .from('exams')
           .insert({
             subject: aiData.subject,
             exam_date: aiData.date,
-            exam_type: aiData.title || 'Exam',
+            exam_type: examType,
             description: aiData.description || '',
             created_by: user.id,
             uploader_name: userData?.username || 'Unknown'
