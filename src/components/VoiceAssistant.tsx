@@ -17,9 +17,179 @@ export const VoiceAssistant = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [conversationHistory, setConversationHistory] = useState<Array<{ role: string; content: string }>>([]);
+  const conversationHistoryRef = useRef<Array<{ role: string; content: string }>>([]);
   const recognitionRef = useRef<any>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Keep ref in sync with state
+  useEffect(() => {
+    conversationHistoryRef.current = conversationHistory;
+  }, [conversationHistory]);
+
+  const processCommand = async (transcribedText: string) => {
+    setIsProcessing(true);
+    
+    try {
+      toast({ title: 'I heard:', description: transcribedText });
+
+      // Add user message to conversation history using ref to get latest value
+      const updatedHistory = [...conversationHistoryRef.current, { role: 'user', content: transcribedText }];
+      setConversationHistory(updatedHistory);
+
+      // Detect if it's a query, delete, or create command
+      const isQuery = /how many|what|show|tell|list|pending|upcoming|overdue|do i have/i.test(transcribedText);
+      const isDelete = /delete|remove|cancel|clear/i.test(transcribedText);
+      const isCreate = /create|add|make|schedule|set|new/i.test(transcribedText);
+
+      // Process with AI using Gemini
+      const action = isQuery ? 'query' : isDelete ? 'delete' : isCreate ? 'create' : 'query';
+      const { data: aiData, error: aiError } = await supabase.functions.invoke(
+        'voice-assistant',
+        { body: { text: transcribedText, action, conversationHistory: updatedHistory } }
+      );
+
+      if (aiError) throw aiError;
+
+      // Handle query response
+      if (aiData.type === 'response') {
+        const assistantMessage = { role: 'assistant', content: aiData.message };
+        const newHistory = [...updatedHistory, assistantMessage];
+        setConversationHistory(newHistory);
+        
+        toast({ 
+          title: 'Assistant', 
+          description: aiData.message,
+          duration: 8000 
+        });
+        return;
+      }
+
+      // Handle clarification needed
+      if (aiData.type === 'clarification') {
+        const assistantMessage = { role: 'assistant', content: aiData.message };
+        const newHistory = [...updatedHistory, assistantMessage];
+        setConversationHistory(newHistory);
+        
+        toast({ 
+          title: 'Need more info', 
+          description: aiData.message,
+          duration: 6000
+        });
+        return;
+      }
+
+      // Handle delete success
+      if (aiData.type === 'delete_success') {
+        const successMessage = aiData.message;
+        const newHistory = [...updatedHistory, { role: 'assistant', content: successMessage }];
+        setConversationHistory(newHistory);
+        
+        toast({ 
+          title: 'Deleted!', 
+          description: successMessage 
+        });
+        
+        queryClient.invalidateQueries({ queryKey: ['reminders'] });
+        queryClient.invalidateQueries({ queryKey: ['exams'] });
+        return;
+      }
+
+      // Step 3: Create exam or reminder
+      if (aiData.type === 'exam') {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error('Not authenticated');
+
+        const { data: userData } = await supabase
+          .from('users')
+          .select('username')
+          .eq('auth_user_id', user.id)
+          .single();
+
+        // Ensure exam_type is one of the valid values
+        const validExamTypes = ['Internal Test', 'Viva', 'Mid-Sem', 'Final'];
+        const examType = validExamTypes.includes(aiData.exam_type) 
+          ? aiData.exam_type 
+          : 'Internal Test'; // Default fallback
+
+        const { error: examError } = await supabase
+          .from('exams')
+          .insert({
+            subject: aiData.subject,
+            exam_date: aiData.date,
+            exam_type: examType,
+            description: aiData.description || '',
+            created_by: user.id,
+            uploader_name: userData?.username || 'Unknown'
+          });
+
+        if (examError) {
+          if (examError.message.includes('duplicate') || examError.message.includes('already')) {
+            toast({ 
+              title: 'Already exists', 
+              description: 'This exam is already scheduled',
+              variant: 'destructive' 
+            });
+          } else {
+            throw examError;
+          }
+        } else {
+          const successMessage = `Exam created: ${aiData.subject} on ${aiData.date}`;
+          const newHistory = [...updatedHistory, { role: 'assistant', content: successMessage }];
+          setConversationHistory(newHistory);
+          toast({ 
+            title: 'Exam created!', 
+            description: `${aiData.subject} on ${aiData.date}` 
+          });
+          queryClient.invalidateQueries({ queryKey: ['exams'] });
+        }
+      } else if (aiData.type === 'reminder') {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error('Not authenticated');
+
+        const { error: reminderError } = await supabase
+          .from('reminders')
+          .insert({
+            title: aiData.title,
+            subject: aiData.subject,
+            deadline: aiData.date,
+            description: aiData.description || '',
+            created_by: user.id
+          });
+
+        if (reminderError) {
+          if (reminderError.message.includes('duplicate') || reminderError.message.includes('already')) {
+            toast({ 
+              title: 'Already exists', 
+              description: 'This reminder is already created',
+              variant: 'destructive' 
+            });
+          } else {
+            throw reminderError;
+          }
+        } else {
+          const successMessage = `Reminder created: ${aiData.title} due ${aiData.date}`;
+          const newHistory = [...updatedHistory, { role: 'assistant', content: successMessage }];
+          setConversationHistory(newHistory);
+          toast({ 
+            title: 'Reminder created!', 
+            description: `${aiData.title} due ${aiData.date}` 
+          });
+          queryClient.invalidateQueries({ queryKey: ['reminders'] });
+        }
+      }
+
+    } catch (error) {
+      console.error('Processing error:', error);
+      toast({ 
+        title: 'Error', 
+        description: 'Failed to process voice command',
+        variant: 'destructive' 
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
   useEffect(() => {
     // Initialize Speech Recognition
@@ -87,164 +257,6 @@ export const VoiceAssistant = () => {
     if (recognitionRef.current && isRecording) {
       recognitionRef.current.stop();
       setIsRecording(false);
-    }
-  };
-
-  const processCommand = async (transcribedText: string) => {
-    setIsProcessing(true);
-    
-    try {
-      toast({ title: 'I heard:', description: transcribedText });
-
-      // Add user message to conversation history
-      const updatedHistory = [...conversationHistory, { role: 'user', content: transcribedText }];
-
-      // Detect if it's a query, delete, or create command
-      const isQuery = /how many|what|show|tell|list|pending|upcoming|overdue|do i have/i.test(transcribedText);
-      const isDelete = /delete|remove|cancel|clear/i.test(transcribedText);
-      const isCreate = /create|add|make|schedule|set|new/i.test(transcribedText);
-
-      // Process with AI using Gemini
-      const action = isQuery ? 'query' : isDelete ? 'delete' : isCreate ? 'create' : 'query';
-      const { data: aiData, error: aiError } = await supabase.functions.invoke(
-        'voice-assistant',
-        { body: { text: transcribedText, action, conversationHistory: updatedHistory } }
-      );
-
-      if (aiError) throw aiError;
-
-      // Handle query response
-      if (aiData.type === 'response') {
-        const assistantMessage = { role: 'assistant', content: aiData.message };
-        setConversationHistory([...updatedHistory, assistantMessage]);
-        
-        toast({ 
-          title: 'Assistant', 
-          description: aiData.message,
-          duration: 8000 
-        });
-        return;
-      }
-
-      // Handle clarification needed
-      if (aiData.type === 'clarification') {
-        const assistantMessage = { role: 'assistant', content: aiData.message };
-        setConversationHistory([...updatedHistory, assistantMessage]);
-        
-        toast({ 
-          title: 'Need more info', 
-          description: aiData.message,
-          duration: 6000
-        });
-        return;
-      }
-
-      // Handle delete success
-      if (aiData.type === 'delete_success') {
-        const successMessage = aiData.message;
-        setConversationHistory([...updatedHistory, { role: 'assistant', content: successMessage }]);
-        
-        toast({ 
-          title: 'Deleted!', 
-          description: successMessage 
-        });
-        
-        queryClient.invalidateQueries({ queryKey: ['reminders'] });
-        queryClient.invalidateQueries({ queryKey: ['exams'] });
-        return;
-      }
-
-      // Step 3: Create exam or reminder
-      if (aiData.type === 'exam') {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) throw new Error('Not authenticated');
-
-        const { data: userData } = await supabase
-          .from('users')
-          .select('username')
-          .eq('auth_user_id', user.id)
-          .single();
-
-        // Ensure exam_type is one of the valid values
-        const validExamTypes = ['Internal Test', 'Viva', 'Mid-Sem', 'Final'];
-        const examType = validExamTypes.includes(aiData.exam_type) 
-          ? aiData.exam_type 
-          : 'Internal Test'; // Default fallback
-
-        const { error: examError } = await supabase
-          .from('exams')
-          .insert({
-            subject: aiData.subject,
-            exam_date: aiData.date,
-            exam_type: examType,
-            description: aiData.description || '',
-            created_by: user.id,
-            uploader_name: userData?.username || 'Unknown'
-          });
-
-        if (examError) {
-          if (examError.message.includes('duplicate') || examError.message.includes('already')) {
-            toast({ 
-              title: 'Already exists', 
-              description: 'This exam is already scheduled',
-              variant: 'destructive' 
-            });
-          } else {
-            throw examError;
-          }
-        } else {
-          const successMessage = `Exam created: ${aiData.subject} on ${aiData.date}`;
-          setConversationHistory([...updatedHistory, { role: 'assistant', content: successMessage }]);
-          toast({ 
-            title: 'Exam created!', 
-            description: `${aiData.subject} on ${aiData.date}` 
-          });
-          queryClient.invalidateQueries({ queryKey: ['exams'] });
-        }
-      } else if (aiData.type === 'reminder') {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) throw new Error('Not authenticated');
-
-        const { error: reminderError } = await supabase
-          .from('reminders')
-          .insert({
-            title: aiData.title,
-            subject: aiData.subject,
-            deadline: aiData.date,
-            description: aiData.description || '',
-            created_by: user.id
-          });
-
-        if (reminderError) {
-          if (reminderError.message.includes('duplicate') || reminderError.message.includes('already')) {
-            toast({ 
-              title: 'Already exists', 
-              description: 'This reminder is already created',
-              variant: 'destructive' 
-            });
-          } else {
-            throw reminderError;
-          }
-        } else {
-          const successMessage = `Reminder created: ${aiData.title} due ${aiData.date}`;
-          setConversationHistory([...updatedHistory, { role: 'assistant', content: successMessage }]);
-          toast({ 
-            title: 'Reminder created!', 
-            description: `${aiData.title} due ${aiData.date}` 
-          });
-          queryClient.invalidateQueries({ queryKey: ['reminders'] });
-        }
-      }
-
-    } catch (error) {
-      console.error('Processing error:', error);
-      toast({ 
-        title: 'Error', 
-        description: 'Failed to process voice command',
-        variant: 'destructive' 
-      });
-    } finally {
-      setIsProcessing(false);
     }
   };
 
