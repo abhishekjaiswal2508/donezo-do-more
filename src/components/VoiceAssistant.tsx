@@ -100,11 +100,12 @@ export const VoiceAssistant = () => {
       const updatedHistory = [...conversationHistory, { role: 'user', content: transcribedText }];
 
       // Detect if it's a query, delete, or create command
-      const isQuery = /how many|what|show|tell|list|pending|upcoming|overdue/i.test(transcribedText);
+      const isQuery = /how many|what|show|tell|list|pending|upcoming|overdue|do i have/i.test(transcribedText);
       const isDelete = /delete|remove|cancel|clear/i.test(transcribedText);
+      const isCreate = /create|add|make|schedule|set|new/i.test(transcribedText);
 
       // Process with AI using Gemini
-      const action = isQuery ? 'query' : isDelete ? 'delete' : 'create';
+      const action = isQuery ? 'query' : isDelete ? 'delete' : isCreate ? 'create' : 'query';
       const { data: aiData, error: aiError } = await supabase.functions.invoke(
         'voice-assistant',
         { body: { text: transcribedText, action, conversationHistory: updatedHistory } }

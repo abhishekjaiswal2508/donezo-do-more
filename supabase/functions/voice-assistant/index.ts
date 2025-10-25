@@ -34,8 +34,9 @@ serve(async (req) => {
     console.log('Processing voice command:', text, 'Action:', action);
 
     // Determine action type from user input
-    const isQuery = /how many|what|show|tell|list|pending|upcoming|overdue/i.test(text);
+    const isQuery = /how many|what|show|tell|list|pending|upcoming|overdue|do i have/i.test(text);
     const isDelete = /delete|remove|cancel|clear/i.test(text);
+    const isCreate = /create|add|make|schedule|set|new/i.test(text);
     
     // Handle delete actions
     if (isDelete) {
@@ -53,16 +54,22 @@ serve(async (req) => {
 
       const prompt = `User wants to delete something: "${text}"
 
-Available Reminders:
+Available Reminders (Assignments/Homework/Tasks):
 ${reminders?.map((r, i) => `${i + 1}. ${r.title} (${r.subject}) - Due: ${new Date(r.deadline).toLocaleDateString()} [ID: ${r.id}]`).join('\n') || 'No reminders'}
 
-Available Exams:
+Available Exams (Tests):
 ${exams?.map((e, i) => `${i + 1}. ${e.subject} ${e.exam_type} - Date: ${new Date(e.exam_date).toLocaleDateString()} [ID: ${e.id}]`).join('\n') || 'No exams'}
+
+STRICT RULES:
+- If user says "assignment", "homework", "task" → delete from reminders (item_type: "reminder")
+- If user says "exam", "test", "quiz" → delete from exams (item_type: "exam")
+- If user says "all maths assignments" → find ALL reminders with subject "Maths" or similar
+- If user says "all maths exams" → find ALL exams with subject "Maths" or similar
 
 Return JSON:
 {
   "type": "delete",
-  "item_type": "reminder" or "exam",
+  "item_type": "reminder" or "exam" (follow strict rules above),
   "item_ids": ["array of UUIDs to delete - can be multiple if user says 'all' or specifies multiple items"]
 }
 
@@ -150,19 +157,19 @@ If you can't identify which item(s) to delete, return:
 
       const prompt = `Based on this user query: "${text}"
       
-Upcoming Reminders (${upcomingReminders.length}):
+Upcoming Reminders/Assignments (${upcomingReminders.length}):
 ${upcomingReminders.map(r => `- ${r.title} (${r.subject || 'No subject'}) - Due: ${new Date(r.deadline).toLocaleDateString()}`).join('\n')}
 
-Overdue Reminders (${overdueReminders.length}):
+Overdue Reminders/Assignments (${overdueReminders.length}):
 ${overdueReminders.map(r => `- ${r.title} (${r.subject || 'No subject'}) - Was due: ${new Date(r.deadline).toLocaleDateString()}`).join('\n')}
 
-Upcoming Exams (${upcomingExams.length}):
+Upcoming Exams/Tests (${upcomingExams.length}):
 ${upcomingExams.map(e => `- ${e.subject} ${e.exam_type} - Date: ${new Date(e.exam_date).toLocaleDateString()}`).join('\n')}
 
-Past Exams (${pastExams.length}):
+Past Exams/Tests (${pastExams.length}):
 ${pastExams.map(e => `- ${e.subject} ${e.exam_type} - Was on: ${new Date(e.exam_date).toLocaleDateString()}`).join('\n')}
 
-Provide a natural, helpful response. Include specific details from the data above. Be conversational and friendly.`;
+Provide a natural, helpful, conversational response like Google Assistant would. Be friendly and clear. Include specific details from the data above.`;
 
       const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
       if (!lovableApiKey) {
@@ -198,28 +205,41 @@ Provide a natural, helpful response. Include specific details from the data abov
 
     // Handle create actions (exam or reminder)
     const messages = [
-      { role: 'system', content: 'You are a friendly voice assistant like Google Assistant. Parse commands naturally and respond with valid JSON only. Use conversation history to fill in missing details from previous exchanges.' },
+      { role: 'system', content: `You are a friendly voice assistant like Google Assistant. Parse commands naturally and respond with valid JSON only. Use conversation history to fill in missing details from previous exchanges.
+
+CRITICAL DISTINCTION:
+- ASSIGNMENT/HOMEWORK/TASK = Always type "reminder" (has deadline)
+- EXAM/TEST/QUIZ/VIVA/MID-SEM/FINAL = Always type "exam" (has specific date + time)
+
+NEVER confuse these two! If user says "assignment", it's ALWAYS a reminder. If they say "exam/test", it's ALWAYS an exam.` },
       ...(conversationHistory || []),
       { role: 'user', content: `Extract structured information from this voice command: "${text}"
 
-Determine if this is:
-1. An EXAM: Has specific exam date/time, subject, and is about a test/quiz/exam
-2. A REMINDER: Has a deadline, subject, and is about an assignment/homework/task
+STRICT RULES:
+1. If the command contains words: "assignment", "homework", "task" → type MUST be "reminder"
+2. If the command contains words: "exam", "test", "quiz", "viva", "mid-sem", "final" → type MUST be "exam"
+
+EXAM vs REMINDER:
+- EXAM: A test/quiz with specific date AND time (e.g., "Maths exam on Nov 26 at 2pm")
+- REMINDER: An assignment/homework/task with a deadline (e.g., "Java assignment due Monday")
 
 Return JSON with this structure:
 {
-  "type": "exam" or "reminder",
-  "title": "extracted title",
+  "type": "exam" OR "reminder" (follow strict rules above),
+  "title": "extracted title (for reminders) or exam subject (for exams)",
   "subject": "extracted subject name",
   "date": "YYYY-MM-DD format (use current year 2025 if year not specified)",
-  "time": "HH:MM format (for exams only)",
-  "exam_type": "ONLY for exams - must be exactly one of: 'Internal Test', 'Viva', 'Mid-Sem', or 'Final'. Choose the most appropriate based on context. If unclear, use 'Internal Test'",
+  "time": "HH:MM format (REQUIRED for exams, optional for reminders)",
+  "exam_type": "ONLY for exams - must be exactly one of: 'Internal Test', 'Viva', 'Mid-Sem', or 'Final'. Choose based on context. Default: 'Internal Test'",
   "description": "any additional details"
 }
 
-CRITICAL: For exams, exam_type MUST be exactly one of these four values: 'Internal Test', 'Viva', 'Mid-Sem', 'Final'
+EXAMPLES:
+- "Create Maths assignment on Monday" → type: "reminder", title: "Maths Assignment", subject: "Maths"
+- "Schedule Java exam on Nov 26 at 2pm" → type: "exam", subject: "Java", exam_type: "Internal Test"
+- "Add COA homework due next week" → type: "reminder", title: "COA Homework", subject: "COA"
 
-If critical information is missing and you cannot infer it from conversation history, return: { "type": "clarification", "message": "what specific information you need" }` }
+If critical information is missing, return: { "type": "clarification", "message": "what specific information you need" }` }
     ];
 
     const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
