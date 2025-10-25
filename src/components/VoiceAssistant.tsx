@@ -99,13 +99,15 @@ export const VoiceAssistant = () => {
       // Add user message to conversation history
       const updatedHistory = [...conversationHistory, { role: 'user', content: transcribedText }];
 
-      // Detect if it's a query or create command
+      // Detect if it's a query, delete, or create command
       const isQuery = /how many|what|show|tell|list|pending|upcoming|overdue/i.test(transcribedText);
+      const isDelete = /delete|remove|cancel|clear/i.test(transcribedText);
 
       // Process with AI using Gemini
+      const action = isQuery ? 'query' : isDelete ? 'delete' : 'create';
       const { data: aiData, error: aiError } = await supabase.functions.invoke(
         'voice-assistant',
-        { body: { text: transcribedText, action: isQuery ? 'query' : 'create', conversationHistory: updatedHistory } }
+        { body: { text: transcribedText, action, conversationHistory: updatedHistory } }
       );
 
       if (aiError) throw aiError;
@@ -133,6 +135,21 @@ export const VoiceAssistant = () => {
           description: aiData.message,
           duration: 6000
         });
+        return;
+      }
+
+      // Handle delete success
+      if (aiData.type === 'delete_success') {
+        const successMessage = aiData.message;
+        setConversationHistory([...updatedHistory, { role: 'assistant', content: successMessage }]);
+        
+        toast({ 
+          title: 'Deleted!', 
+          description: successMessage 
+        });
+        
+        queryClient.invalidateQueries({ queryKey: ['reminders'] });
+        queryClient.invalidateQueries({ queryKey: ['exams'] });
         return;
       }
 

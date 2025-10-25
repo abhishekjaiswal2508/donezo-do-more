@@ -33,8 +33,98 @@ serve(async (req) => {
 
     console.log('Processing voice command:', text, 'Action:', action);
 
+    // Determine action type from user input
+    const isQuery = /how many|what|show|tell|list|pending|upcoming|overdue/i.test(text);
+    const isDelete = /delete|remove|cancel|clear/i.test(text);
+    
+    // Handle delete actions
+    if (isDelete) {
+      const { data: reminders } = await supabase
+        .from('reminders')
+        .select('id, title, subject, deadline')
+        .eq('created_by', user.id)
+        .order('deadline', { ascending: true });
+
+      const { data: exams } = await supabase
+        .from('exams')
+        .select('id, subject, exam_type, exam_date')
+        .eq('created_by', user.id)
+        .order('exam_date', { ascending: true });
+
+      const prompt = `User wants to delete something: "${text}"
+
+Available Reminders:
+${reminders?.map((r, i) => `${i + 1}. ${r.title} (${r.subject}) - Due: ${new Date(r.deadline).toLocaleDateString()} [ID: ${r.id}]`).join('\n') || 'No reminders'}
+
+Available Exams:
+${exams?.map((e, i) => `${i + 1}. ${e.subject} ${e.exam_type} - Date: ${new Date(e.exam_date).toLocaleDateString()} [ID: ${e.id}]`).join('\n') || 'No exams'}
+
+Return JSON:
+{
+  "type": "delete",
+  "item_type": "reminder" or "exam",
+  "item_id": "uuid of the item to delete"
+}
+
+If you can't identify which item to delete, return:
+{ "type": "clarification", "message": "Ask user to be more specific about which item they want to delete" }`;
+
+      const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
+      if (!lovableApiKey) throw new Error('LOVABLE_API_KEY not configured');
+
+      const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${lovableApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'google/gemini-2.5-flash',
+          messages: [
+            { role: 'system', content: 'You are a helpful assistant. Parse user intent and return valid JSON only.' },
+            ...(conversationHistory || []),
+            { role: 'user', content: prompt }
+          ],
+        }),
+      });
+
+      const aiData = await aiResponse.json();
+      const content = aiData.choices[0].message.content;
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw new Error('Failed to parse AI response');
+      const parsed = JSON.parse(jsonMatch[0]);
+
+      if (parsed.type === 'clarification') {
+        return new Response(
+          JSON.stringify(parsed),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Perform the deletion
+      if (parsed.type === 'delete') {
+        const table = parsed.item_type === 'reminder' ? 'reminders' : 'exams';
+        const { error: deleteError } = await supabase
+          .from(table)
+          .delete()
+          .eq('id', parsed.item_id)
+          .eq('created_by', user.id);
+
+        if (deleteError) throw deleteError;
+
+        return new Response(
+          JSON.stringify({ 
+            type: 'delete_success', 
+            item_type: parsed.item_type,
+            message: `Successfully deleted the ${parsed.item_type}` 
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
     // Handle query actions (check pending/upcoming items)
-    if (action === 'query') {
+    if (isQuery) {
       const { data: reminders } = await supabase
         .from('reminders')
         .select('*')
@@ -72,7 +162,7 @@ Provide a natural, helpful response. Include specific details from the data abov
       }
 
       const messages = [
-        { role: 'system', content: 'You are a helpful study assistant. Provide brief, natural, and friendly responses. When listing items, be clear and specific.' },
+        { role: 'system', content: 'You are a friendly and helpful AI assistant, similar to Google Assistant. Be conversational, natural, and proactive. Use casual language and provide clear, concise answers. When listing items, organize them nicely and highlight what\'s most important or urgent.' },
         ...(conversationHistory || []),
         { role: 'user', content: prompt }
       ];
@@ -100,7 +190,7 @@ Provide a natural, helpful response. Include specific details from the data abov
 
     // Handle create actions (exam or reminder)
     const messages = [
-      { role: 'system', content: 'You are a voice command parser. Always respond with valid JSON only. Use the conversation history to fill in missing details if the user is providing additional information.' },
+      { role: 'system', content: 'You are a friendly voice assistant like Google Assistant. Parse commands naturally and respond with valid JSON only. Use conversation history to fill in missing details from previous exchanges.' },
       ...(conversationHistory || []),
       { role: 'user', content: `Extract structured information from this voice command: "${text}"
 
