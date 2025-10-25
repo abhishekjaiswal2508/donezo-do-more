@@ -63,10 +63,10 @@ Return JSON:
 {
   "type": "delete",
   "item_type": "reminder" or "exam",
-  "item_id": "uuid of the item to delete"
+  "item_ids": ["array of UUIDs to delete - can be multiple if user says 'all' or specifies multiple items"]
 }
 
-If you can't identify which item to delete, return:
+If you can't identify which item(s) to delete, return:
 { "type": "clarification", "message": "Ask user to be more specific about which item they want to delete" }`;
 
       const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
@@ -104,19 +104,27 @@ If you can't identify which item to delete, return:
       // Perform the deletion
       if (parsed.type === 'delete') {
         const table = parsed.item_type === 'reminder' ? 'reminders' : 'exams';
+        const itemIds = Array.isArray(parsed.item_ids) ? parsed.item_ids : [parsed.item_ids];
+        
         const { error: deleteError } = await supabase
           .from(table)
           .delete()
-          .eq('id', parsed.item_id)
+          .in('id', itemIds)
           .eq('created_by', user.id);
 
         if (deleteError) throw deleteError;
+
+        const count = itemIds.length;
+        const message = count === 1 
+          ? `Successfully deleted the ${parsed.item_type}` 
+          : `Successfully deleted ${count} ${parsed.item_type}${count > 1 ? 's' : ''}`;
 
         return new Response(
           JSON.stringify({ 
             type: 'delete_success', 
             item_type: parsed.item_type,
-            message: `Successfully deleted the ${parsed.item_type}` 
+            count,
+            message 
           }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
