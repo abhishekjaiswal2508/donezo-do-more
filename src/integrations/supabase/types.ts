@@ -170,6 +170,7 @@ export type Database = {
           description: string | null
           group_id: string | null
           id: string
+          source: string
           subject: string
           title: string
           updated_at: string
@@ -181,6 +182,7 @@ export type Database = {
           description?: string | null
           group_id?: string | null
           id?: string
+          source?: string
           subject: string
           title: string
           updated_at?: string
@@ -192,6 +194,7 @@ export type Database = {
           description?: string | null
           group_id?: string | null
           id?: string
+          source?: string
           subject?: string
           title?: string
           updated_at?: string
@@ -224,6 +227,42 @@ export type Database = {
           created_by?: string
           id?: string
           name?: string
+        }
+        Relationships: []
+      }
+      user_integrations: {
+        Row: {
+          access_token: string
+          created_at: string
+          id: string
+          last_sync_at: string | null
+          platform: string
+          refresh_token: string | null
+          token_expires_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          access_token: string
+          created_at?: string
+          id?: string
+          last_sync_at?: string | null
+          platform: string
+          refresh_token?: string | null
+          token_expires_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          access_token?: string
+          created_at?: string
+          id?: string
+          last_sync_at?: string | null
+          platform?: string
+          refresh_token?: string | null
+          token_expires_at?: string | null
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
